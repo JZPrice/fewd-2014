@@ -24,7 +24,10 @@ export class Debugger {
       </div>
       <div class="dbg-row">
         <button data-act="hap" id="dbg-hap">haptics: —</button>
+        <button data-act="haptest">test</button>
       </div>
+      <div class="dbg-stat"><span>vibrate API</span><b id="dbg-hap-api">—</b></div>
+      <div class="dbg-stat"><span>last call</span><b id="dbg-hap-last">—</b></div>
       <div class="dbg-stat"><span>state</span><b id="dbg-state">—</b></div>
       <div class="dbg-stat"><span>stage / wave</span><b id="dbg-sw">—</b></div>
       <div class="dbg-stat"><span>cubes left</span><b id="dbg-cubes">—</b></div>
@@ -109,7 +112,16 @@ export class Debugger {
       case "hap":
         if (g.haptics) {
           g.haptics.setEnabled(!g.haptics.enabled);
-          g.haptics.capture(); // confirmation pulse
+          if (g.haptics.enabled) g.haptics.test();
+        }
+        break;
+      case "haptest":
+        if (g.haptics) {
+          // Force-enable while testing so we can see the result regardless.
+          const wasEnabled = g.haptics.enabled;
+          if (g.haptics.supported) g.haptics.setEnabled(true);
+          g.haptics.test();
+          if (!wasEnabled) g.haptics.setEnabled(false);
         }
         break;
       case "pause":  g.togglePaused(); break;
@@ -154,6 +166,19 @@ export class Debugger {
                   : hap.enabled    ? "haptics: ON"
                                    : "haptics: off";
       $("dbg-hap").textContent = label;
+      $("dbg-hap-api").textContent = hap.supported
+        ? `present (${typeof navigator.vibrate})`
+        : "absent on this browser";
+      if (hap.lastTime) {
+        const age = ((Date.now() - hap.lastTime) / 1000).toFixed(1);
+        const pat = Array.isArray(hap.lastPattern)
+          ? `[${hap.lastPattern.join(",")}]`
+          : `${hap.lastPattern}ms`;
+        const err = hap.lastError ? ` (${hap.lastError})` : "";
+        $("dbg-hap-last").textContent = `${pat} -> ${hap.lastResult} ${age}s ago${err}`;
+      } else {
+        $("dbg-hap-last").textContent = "—";
+      }
     }
   }
 }
