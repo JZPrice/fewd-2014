@@ -1,10 +1,10 @@
-import { Renderer } from "./renderer.js?v=9";
-import { Input } from "./input.js?v=9";
-import { AudioEngine } from "./audio.js?v=9";
-import { HUD } from "./hud.js?v=9";
-import { Game } from "./game.js?v=9";
-import { Debugger } from "./debug.js?v=9";
-import { Haptics } from "./haptics.js?v=9";
+import { Renderer } from "./renderer.js?v=10";
+import { Input } from "./input.js?v=10";
+import { AudioEngine } from "./audio.js?v=10";
+import { HUD } from "./hud.js?v=10";
+import { Game } from "./game.js?v=10";
+import { Debugger } from "./debug.js?v=10";
+import { Haptics } from "./haptics.js?v=10";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -71,6 +71,90 @@ document.querySelectorAll(".tbtn[data-hold]").forEach((btn) => {
 document.querySelectorAll(".tbtn[data-action]").forEach((btn) => {
   bindActionButton(btn, btn.dataset.action);
 });
+
+// --- Virtual joystick -------------------------------------------------------
+
+function setupJoystick(rootSelector) {
+  const root = document.querySelector(rootSelector);
+  if (!root) return;
+  const base = root.querySelector(".joy-base");
+  const stick = root.querySelector(".joy-stick");
+  if (!base || !stick) return;
+
+  let activePointerId = null;
+  let cx = 0, cy = 0;
+  let radius = 60;
+  const state = { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
+
+  function updateHeld(next) {
+    for (const key of Object.keys(state)) {
+      if (state[key] !== next[key]) {
+        if (next[key]) input.holdVirtual(key);
+        else input.releaseVirtual(key);
+        state[key] = next[key];
+      }
+    }
+  }
+
+  // 4-way snap based on dominant axis, with a centered dead zone.
+  function dirsFromOffset(dx, dy, r) {
+    const mag = Math.hypot(dx, dy);
+    const dz = r * 0.28;
+    if (mag < dz) {
+      return { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
+    }
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return { arrowleft: dx < 0, arrowright: dx > 0, arrowup: false, arrowdown: false };
+    }
+    return { arrowleft: false, arrowright: false, arrowup: dy < 0, arrowdown: dy > 0 };
+  }
+
+  function moveStick(dx, dy) {
+    const mag = Math.hypot(dx, dy);
+    const clamp = mag > 0 ? Math.min(1, mag / radius) : 0;
+    const ndx = mag > 0 ? (dx / mag) * radius * clamp : 0;
+    const ndy = mag > 0 ? (dy / mag) * radius * clamp : 0;
+    stick.style.transform = `translate(${ndx}px, ${ndy}px)`;
+  }
+
+  function onDown(e) {
+    if (activePointerId !== null) return;
+    e.preventDefault();
+    activePointerId = e.pointerId;
+    try { base.setPointerCapture(e.pointerId); } catch (_) {}
+    const rect = base.getBoundingClientRect();
+    cx = rect.left + rect.width / 2;
+    cy = rect.top + rect.height / 2;
+    radius = rect.width / 2 - 14;
+    base.classList.add("active");
+    onMove(e);
+  }
+
+  function onMove(e) {
+    if (e.pointerId !== activePointerId) return;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    moveStick(dx, dy);
+    updateHeld(dirsFromOffset(dx, dy, radius));
+  }
+
+  function onUp(e) {
+    if (e.pointerId !== activePointerId) return;
+    activePointerId = null;
+    moveStick(0, 0);
+    updateHeld({ arrowleft: false, arrowright: false, arrowup: false, arrowdown: false });
+    base.classList.remove("active");
+  }
+
+  base.addEventListener("pointerdown", onDown);
+  base.addEventListener("pointermove", onMove);
+  base.addEventListener("pointerup", onUp);
+  base.addEventListener("pointercancel", onUp);
+  base.addEventListener("pointerleave", onUp);
+  base.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+setupJoystick(".joystick");
 
 // Tap-to-start on title and gameover overlays.
 function bindOverlayTap(id) {

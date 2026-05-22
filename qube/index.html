@@ -11,7 +11,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <link rel="stylesheet" href="css/style.css?v=9" />
+  <link rel="stylesheet" href="css/style.css?v=10" />
   <script type="importmap">
     {
       "imports": {
@@ -41,11 +41,10 @@
   <div id="message" class="overlay hidden"></div>
 
   <div id="touch-controls">
-    <div class="dpad">
-      <button class="tbtn dpad-up"    data-hold="arrowup"    aria-label="up">▲</button>
-      <button class="tbtn dpad-left"  data-hold="arrowleft"  aria-label="left">◀</button>
-      <button class="tbtn dpad-right" data-hold="arrowright" aria-label="right">▶</button>
-      <button class="tbtn dpad-down"  data-hold="arrowdown"  aria-label="down">▼</button>
+    <div class="joystick">
+      <div class="joy-base" aria-label="movement joystick">
+        <div class="joy-stick"></div>
+      </div>
     </div>
     <div class="actions">
       <button class="tbtn act-mark"    data-action="mark"     aria-label="mark">MARK</button>
@@ -64,7 +63,7 @@
       <p>detonate blasts all bombs (3×3 each) at once</p>
     </div>
     <div class="controls touch-only">
-      <p>D-pad to move</p>
+      <p>drag the joystick to move</p>
       <p>MARK then FIRE to capture</p>
       <p>fire on a green cube places a bomb</p>
       <p>BOMB detonates all bombs (3×3 each) at once</p>
@@ -80,6 +79,6 @@
     <p class="prompt touch-only">tap to restart</p>
   </div>
 
-  <script type="module" src="js/main.js?v=9"></script>
+  <script type="module" src="js/main.js?v=10"></script>
 </body>
 </html>
