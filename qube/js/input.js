@@ -22,14 +22,9 @@ export class Input {
     const actions = {
       "j": "mark",
       "k": "trigger",
-      "l": "advmark",
-      " ": "advtrigger",
       "enter": "start",
     };
-    if (actions[k]) {
-      this.queue.push(actions[k]);
-      if (k === " ") e.preventDefault();
-    }
+    if (actions[k]) this.queue.push(actions[k]);
   }
 
   _up(e) {

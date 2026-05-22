@@ -20,9 +20,10 @@ export class Renderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    this.camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
-    this.camera.position.set(0, 3.6, 4.2);
-    this.camera.lookAt(0, 0.4, -3);
+    this._lookZ = -(GRID_D - 1) / 2;
+    this.camera = new THREE.PerspectiveCamera(54, 1, 0.1, 100);
+    this.camera.position.set(0, 4.4, 4.6);
+    this.camera.lookAt(0, 0.4, this._lookZ);
 
     this._buildLights();
     this._buildFloor();
@@ -254,7 +255,7 @@ export class Renderer {
     this._camTargetX += (target.x - this._camTargetX) * Math.min(1, dt * 3.5);
     const baseX = this._camTargetX * 0.4;
     this.camera.position.x = baseX;
-    this.camera.lookAt(baseX, 0.4, -3);
+    this.camera.lookAt(baseX, 0.4, this._lookZ);
   }
 
   pulseMark(strength) {
@@ -277,20 +278,17 @@ export class Renderer {
     const aspect = w / h;
     this.camera.aspect = aspect;
 
-    // Re-frame for portrait screens: pull the camera back and up so the
-    // playfield fits without the front row falling off the bottom of the
-    // viewport. Tall screens get a tighter FOV; wide screens stay punchy.
     if (aspect < 0.9) {
-      this.camera.fov = 62;
-      this.camera.position.set(0, 5.4, 6.2);
+      this.camera.fov = 64;
+      this.camera.position.set(0, 6.4, 6.8);
     } else if (aspect < 1.4) {
-      this.camera.fov = 56;
-      this.camera.position.set(0, 4.4, 5.2);
+      this.camera.fov = 58;
+      this.camera.position.set(0, 5.2, 5.6);
     } else {
-      this.camera.fov = 52;
-      this.camera.position.set(0, 3.6, 4.2);
+      this.camera.fov = 54;
+      this.camera.position.set(0, 4.4, 4.6);
     }
-    this.camera.lookAt(0, 0.4, -3);
+    this.camera.lookAt(0, 0.4, this._lookZ);
     this.camera.updateProjectionMatrix();
   }
 

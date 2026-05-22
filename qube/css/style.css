@@ -194,26 +194,24 @@ body.touch #touch-controls {
 .dpad-right { top: 58px; right: 0; }
 .dpad-down  { bottom: 0; left: 58px; }
 
-/* Actions: 2x2 grid anchored bottom-right */
+/* Actions: two large buttons anchored bottom-right */
 .actions {
   position: absolute;
   right: max(16px, env(safe-area-inset-right));
   bottom: max(16px, env(safe-area-inset-bottom));
-  display: grid;
-  grid-template-columns: repeat(2, 64px);
-  grid-auto-rows: 52px;
-  gap: 10px;
+  display: flex;
+  gap: 12px;
 }
 
 .actions .tbtn {
   position: static;
-  width: 100%;
-  height: 100%;
+  width: 78px;
+  height: 78px;
+  font-size: 14px;
+  border-radius: 22px;
 }
 .act-mark    { color: #bfe2ff; }
 .act-trigger { color: #ffe190; border-color: rgba(255,210,140,0.45); }
-.act-adv     { color: #b3ffcf; border-color: rgba(150,255,180,0.4); }
-.act-advfire { color: #ffb3d1; border-color: rgba(255,160,200,0.4); font-size: 10px; }
 
 /* show/hide based on input mode */
 .touch-only { display: none; }
@@ -229,7 +227,8 @@ body.touch .touch-only { display: block; }
   .dpad-left  { top: 50px; left: 0; }
   .dpad-right { top: 50px; right: 0; }
   .dpad-down  { bottom: 0; left: 50px; }
-  .actions { grid-template-columns: repeat(2, 58px); grid-auto-rows: 46px; gap: 8px; }
+  .actions { gap: 10px; }
+  .actions .tbtn { width: 66px; height: 66px; }
 }
 
 /* hide controls during title/gameover overlays */

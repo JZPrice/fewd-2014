@@ -50,20 +50,14 @@ export class Stage {
   }
 
   // Resolve a tick: advance every cube one row toward the player.
-  // Real-time triggers (K, Space) are handled in Game.captureMark()/captureAdvMark().
-  // This method handles only the cube advance and the mark auto-fire trap.
+  // Triggers (K) are handled in Game._triggerMark in real time.
   tick(now, player, grid) {
     const events = {
       crushed: false,
       fellOff: false,
-      captured: [],
-      forbiddenBlasts: [],
       cubesFellInHole: 0,
       dangerNear: false,
     };
-
-    const markedTile = grid.mark;
-    const survivors = [];
 
     for (const cube of this.cubes) {
       if (cube.dead) continue;
@@ -74,19 +68,6 @@ export class Stage {
       if (fromZ >= GRID_D) {
         cube.gz = toZ;
         if (toZ < GRID_D) cube.startRoll(fromZ, toZ, now, this.tickMs);
-        survivors.push(cube);
-        continue;
-      }
-
-      // Auto-fire trap: cube lands on the marked tile.
-      if (markedTile && markedTile.x === cube.gx && markedTile.z === toZ) {
-        cube.dead = true;
-        events.captured.push({ cube, x: cube.gx, z: toZ, viaTrap: true });
-        if (cube.isForbidden()) {
-          this.forbiddenDestroyed = true;
-          events.forbiddenBlasts.push({ x: cube.gx, z: toZ });
-        }
-        grid.clearMark();
         continue;
       }
 
@@ -100,7 +81,6 @@ export class Stage {
       // Past front row: cube fell off, taking the player with it.
       if (toZ < 0) {
         events.fellOff = true;
-        survivors.push(cube);
         continue;
       }
 
@@ -111,21 +91,8 @@ export class Stage {
 
       cube.gz = toZ;
       cube.startRoll(fromZ, toZ, now, this.tickMs);
-      survivors.push(cube);
 
       if (toZ <= 1) events.dangerNear = true;
-    }
-
-    // Apply forbidden blasts: punch a hole forward of the destruction point.
-    for (const blast of events.forbiddenBlasts) {
-      for (let dz = 0; dz < FORBIDDEN_HOLE_DEPTH; dz++) {
-        const hz = blast.z - dz;
-        if (hz < 0) break;
-        if (grid.hasTile(blast.x, hz)) {
-          grid.removeTile(blast.x, hz);
-          this.floorLost = true;
-        }
-      }
     }
 
     return events;

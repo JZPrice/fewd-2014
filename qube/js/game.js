@@ -2,7 +2,7 @@ import { Grid } from "./grid.js";
 import { Player } from "./player.js";
 import { Stage } from "./stage.js";
 import { STAGES } from "./stages.js";
-import { CUBE_TYPE } from "./config.js";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js";
 
 const STATE = {
   TITLE: "title",
@@ -50,14 +50,12 @@ export class Game {
     this.hud.setStage(def.id);
     this.hud.setWave(this.stage.waveIndex + 1);
     this.hud.setCubes(this.stage.remainingCubes());
-    this.hud.setAdv(this.player.advantage);
     this.hud.flash(`STAGE ${def.id}`, 1000);
   }
 
   _beginNextWave(now) {
     this.stage.advanceWave();
     this.grid.clearMark();
-    this.grid.clearAdvMark();
     this.renderer.clearAllCubes();
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
@@ -95,6 +93,7 @@ export class Game {
   }
 
   // --- real-time actions ---
+
   _placeMark() {
     if (this.state !== STATE.PLAYING) return;
     if (!this.grid.hasTile(this.player.gx, this.player.gz)) return;
@@ -103,67 +102,43 @@ export class Game {
     }
   }
 
+  // FIRE: capture whatever cube is currently on the mark. If it's a green
+  // (advantage) cube, expand the capture to the 3x3 around it.
   _triggerMark() {
     if (this.state !== STATE.PLAYING) return;
     const m = this.grid.mark;
     if (!m) return;
-    const cube = this.stage.cubes.find(c => !c.dead && c.gx === m.x && c.gz === m.z);
-    if (cube) {
+    const hit = this.stage.cubes.find(c => !c.dead && c.gx === m.x && c.gz === m.z);
+    if (!hit) {
+      this.grid.clearMark();
+      return;
+    }
+
+    const expand = hit.isAdvantage();
+    const toCapture = expand
+      ? this.stage.cubes.filter(c =>
+          !c.dead && Math.abs(c.gx - m.x) <= 1 && Math.abs(c.gz - m.z) <= 1)
+      : [hit];
+
+    let anyForbidden = false;
+    for (const cube of toCapture) {
       cube.dead = true;
       if (cube.isForbidden()) {
+        anyForbidden = true;
         this.stage.forbiddenDestroyed = true;
-        this._applyForbiddenBlast(m.x, m.z);
-        this.audio.boom();
-      } else {
-        this.audio.capture();
-      }
-      if (cube.isAdvantage()) {
-        this.player.advantage++;
-        this.audio.advCharge();
-      }
-    }
-    this.grid.clearMark();
-  }
-
-  _placeAdvMark() {
-    if (this.state !== STATE.PLAYING) return;
-    if (this.player.advantage <= 0) return;
-    this.player.advantage--;
-    this.grid.setAdvMark(this.player.gx, this.player.gz);
-    this.audio.mark();
-  }
-
-  _triggerAdvMark() {
-    if (this.state !== STATE.PLAYING) return;
-    const am = this.grid.advMark;
-    if (!am) return;
-    let anyCapture = false;
-    let anyForbidden = false;
-    let advBoost = 0;
-    for (const cube of this.stage.cubes) {
-      if (cube.dead) continue;
-      if (Math.abs(cube.gx - am.cx) <= 1 && Math.abs(cube.gz - am.cz) <= 1) {
-        cube.dead = true;
-        anyCapture = true;
-        if (cube.isForbidden()) {
-          anyForbidden = true;
-          this.stage.forbiddenDestroyed = true;
-          this._applyForbiddenBlast(cube.gx, cube.gz);
-        }
-        if (cube.isAdvantage()) advBoost++;
+        this._applyForbiddenBlast(cube.gx, cube.gz);
       }
     }
     if (anyForbidden) this.audio.boom();
-    else if (anyCapture) this.audio.capture();
-    if (advBoost > 0) {
-      this.player.advantage += advBoost;
-      this.audio.advCharge();
-    }
-    this.grid.clearAdvMark();
+    else this.audio.capture();
+
+    this.grid.clearMark();
+    this.hud.setCubes(this.stage.remainingCubes());
+
+    if (this.stage.isCleared()) this._onWaveCleared(performance.now());
   }
 
   _applyForbiddenBlast(x, z) {
-    const FORBIDDEN_HOLE_DEPTH = 3;
     for (let dz = 0; dz < FORBIDDEN_HOLE_DEPTH; dz++) {
       const hz = z - dz;
       if (hz < 0) break;
@@ -179,7 +154,6 @@ export class Game {
     const dt = Math.min(0.1, (now - this._lastFrame) / 1000);
     this._lastFrame = now;
 
-    // Handle queued discrete actions and the Enter key.
     let action;
     while ((action = this.input.consumeAction()) !== null) {
       if (action === "start") {
@@ -193,8 +167,6 @@ export class Game {
       if (this.state !== STATE.PLAYING) continue;
       if (action === "mark") this._placeMark();
       else if (action === "trigger") this._triggerMark();
-      else if (action === "advmark") this._placeAdvMark();
-      else if (action === "advtrigger") this._triggerAdvMark();
     }
 
     if (this.state === STATE.PLAYING) {
@@ -208,7 +180,6 @@ export class Game {
       }
     }
 
-    // Visuals always update (so dying/falling animation runs).
     this.renderer.syncFloor(this.grid);
     this.renderer.syncCubes(this.stage ? this.stage.cubes.filter(c => !c.dead) : [], now);
     this.renderer.syncPlayer(this.player, now);
@@ -219,10 +190,8 @@ export class Game {
   }
 
   _updatePlaying(now, dt) {
-    // Movement
     const { dx, dz } = this.input.axis();
     if (dx !== 0 || dz !== 0) {
-      // Only walk onto a tile that exists.
       const nx = this.player.gx + dx;
       const nz = this.player.gz + dz;
       if (this.grid.inBounds(nx, nz) && this.grid.hasTile(nx, nz)) {
@@ -230,32 +199,17 @@ export class Game {
       }
     }
 
-    // Tick
     if (now >= this.stage.nextTickAt) {
       const events = this.stage.tick(now, this.player, this.grid);
       this.stage.nextTickAt += this.stage.tickMs;
       this.audio.beat();
 
-      // Award advantage charges from auto-trap captures.
-      for (const cap of events.captured) {
-        if (cap.cube.isAdvantage()) {
-          this.player.advantage++;
-          this.audio.advCharge();
-        } else if (cap.cube.isForbidden()) {
-          this.audio.boom();
-        } else {
-          this.audio.capture();
-        }
-      }
-
-      if (events.dangerNear && events.captured.length === 0) this.audio.danger();
+      if (events.dangerNear) this.audio.danger();
 
       this.hud.setCubes(this.stage.remainingCubes());
-      this.hud.setAdv(this.player.advantage);
 
       if (events.crushed) { this._die("crushed by a cube"); return; }
       if (events.fellOff) { this._die("a cube reached the edge"); return; }
-      // Player standing on a now-vanished tile? Falls in.
       if (!this.grid.hasTile(this.player.gx, this.player.gz)) {
         this._die("fell through the floor"); return;
       }

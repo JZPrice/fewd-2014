@@ -1,5 +1,5 @@
 export const GRID_W = 4;
-export const GRID_D = 7;
+export const GRID_D = 10;
 export const TILE = 1;
 
 export const MOVE_COOLDOWN_MS = 130;
