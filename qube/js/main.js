@@ -1,8 +1,8 @@
-import { Renderer } from "./renderer.js";
-import { Input } from "./input.js";
-import { AudioEngine } from "./audio.js";
-import { HUD } from "./hud.js";
-import { Game } from "./game.js";
+import { Renderer } from "./renderer.js?v=4";
+import { Input } from "./input.js?v=4";
+import { AudioEngine } from "./audio.js?v=4";
+import { HUD } from "./hud.js?v=4";
+import { Game } from "./game.js?v=4";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
