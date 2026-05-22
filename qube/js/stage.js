@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=8";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=8";
+import { Cube } from "./cube.js?v=9";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=9";
 
 export class Stage {
   constructor(stageDef) {
@@ -50,6 +50,13 @@ export class Stage {
 
   visibleCubes() {
     return this.cubes.filter(c => !c.dead);
+  }
+
+  cubeAt(x, z) {
+    for (const c of this.cubes) {
+      if (!c.dead && c.gx === x && c.gz === z) return c;
+    }
+    return null;
   }
 
   // Resolve a tick: advance every cube one row toward the player.

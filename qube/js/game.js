@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=8";
-import { Player } from "./player.js?v=8";
-import { Stage } from "./stage.js?v=8";
-import { STAGES } from "./stages.js?v=8";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=8";
+import { Grid } from "./grid.js?v=9";
+import { Player } from "./player.js?v=9";
+import { Stage } from "./stage.js?v=9";
+import { STAGES } from "./stages.js?v=9";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=9";
 
 const STATE = {
   TITLE: "title",
@@ -278,7 +278,8 @@ export class Game {
     if (dx !== 0 || dz !== 0) {
       const nx = this.player.gx + dx;
       const nz = this.player.gz + dz;
-      if (this.grid.inBounds(nx, nz) && this.grid.hasTile(nx, nz)) {
+      const blocked = this.stage?.cubeAt(nx, nz);
+      if (this.grid.inBounds(nx, nz) && this.grid.hasTile(nx, nz) && !blocked) {
         this.player.tryMove(dx, dz, now, this.grid);
       }
     }
