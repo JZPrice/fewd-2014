@@ -1,19 +1,21 @@
-import { Renderer } from "./renderer.js?v=6";
-import { Input } from "./input.js?v=6";
-import { AudioEngine } from "./audio.js?v=6";
-import { HUD } from "./hud.js?v=6";
-import { Game } from "./game.js?v=6";
-import { Debugger } from "./debug.js?v=6";
+import { Renderer } from "./renderer.js?v=7";
+import { Input } from "./input.js?v=7";
+import { AudioEngine } from "./audio.js?v=7";
+import { HUD } from "./hud.js?v=7";
+import { Game } from "./game.js?v=7";
+import { Debugger } from "./debug.js?v=7";
+import { Haptics } from "./haptics.js?v=7";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
 const input = new Input();
 const audio = new AudioEngine();
 const hud = new HUD();
+const haptics = new Haptics();
 
 input.attach();
 
-const game = new Game({ renderer, input, audio, hud });
+const game = new Game({ renderer, input, audio, hud, haptics });
 const dbg = new Debugger(game);
 
 // First user interaction unlocks the AudioContext (browsers require gesture).

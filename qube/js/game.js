@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=6";
-import { Player } from "./player.js?v=6";
-import { Stage } from "./stage.js?v=6";
-import { STAGES } from "./stages.js?v=6";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=6";
+import { Grid } from "./grid.js?v=7";
+import { Player } from "./player.js?v=7";
+import { Stage } from "./stage.js?v=7";
+import { STAGES } from "./stages.js?v=7";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=7";
 
 const STATE = {
   TITLE: "title",
@@ -14,11 +14,12 @@ const STATE = {
 };
 
 export class Game {
-  constructor({ renderer, input, audio, hud }) {
+  constructor({ renderer, input, audio, hud, haptics }) {
     this.renderer = renderer;
     this.input = input;
     this.audio = audio;
     this.hud = hud;
+    this.haptics = haptics ?? { mark(){}, capture(){}, bombPlace(){}, detonate(){}, forbidden(){}, death(){}, perfect(){}, danger(){}, rowDrop(){}, step(){} };
 
     this.grid = new Grid();
     this.player = new Player();
@@ -89,6 +90,7 @@ export class Game {
         if (this.grid.removeBackRow()) this.stage.floorLost = true;
       }
       this.audio.boom();
+      this.haptics.rowDrop();
       this.hud.flash(`-${drops} ROW${drops > 1 ? "S" : ""}`, 1100);
       this.stage.pendingRowDrop = 0;
     }
@@ -99,6 +101,7 @@ export class Game {
       const restored = this.grid.restoreBackRow();
       this.hud.flash(restored ? "PERFECT  +ROW" : "PERFECT", 1200);
       this.audio.perfect();
+      this.haptics.perfect();
     } else if (drops === 0) {
       this.hud.flash("CLEAR", 900);
     }
@@ -119,6 +122,7 @@ export class Game {
     if (this.state === STATE.DEAD) return;
     this.state = STATE.DEAD;
     this.audio.death();
+    this.haptics.death();
     this.player.startFall(performance.now());
     setTimeout(() => this.hud.showGameOver(reason), 700);
   }
@@ -130,6 +134,7 @@ export class Game {
     if (!this.grid.hasTile(this.player.gx, this.player.gz)) return;
     if (this.grid.setMark(this.player.gx, this.player.gz)) {
       this.audio.mark();
+      this.haptics.mark();
     }
   }
 
@@ -150,13 +155,16 @@ export class Game {
     if (hit.isAdvantage()) {
       this.grid.addBomb(m.x, m.z);
       this.audio.advCharge();
+      this.haptics.bombPlace();
       this.hud.setBombs(this.grid.bombs.length);
     } else if (hit.isForbidden()) {
       this.stage.forbiddenDestroyed = true;
       this._applyForbiddenBlast(m.x, m.z);
       this.audio.boom();
+      this.haptics.forbidden();
     } else {
       this.audio.capture();
+      this.haptics.capture();
     }
 
     this._extraPause();
@@ -194,6 +202,7 @@ export class Game {
 
     if (killedSet.size > 0) {
       this.audio.boom();
+      this.haptics.detonate();
       this._extraPause();
     }
     this.hud.setCubes(this.stage.remainingCubes());
@@ -286,7 +295,7 @@ export class Game {
       this.stage.nextTickAt += this.stage.tickMs;
       this.audio.beat();
 
-      if (events.dangerNear) this.audio.danger();
+      if (events.dangerNear) { this.audio.danger(); this.haptics.danger(); }
 
       this.hud.setCubes(this.stage.remainingCubes());
 

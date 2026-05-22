@@ -22,6 +22,9 @@ export class Debugger {
       <div class="dbg-head">
         <span>DEBUG</span><button data-act="close" class="dbg-x">×</button>
       </div>
+      <div class="dbg-row">
+        <button data-act="hap" id="dbg-hap">haptics: —</button>
+      </div>
       <div class="dbg-stat"><span>state</span><b id="dbg-state">—</b></div>
       <div class="dbg-stat"><span>stage / wave</span><b id="dbg-sw">—</b></div>
       <div class="dbg-stat"><span>cubes left</span><b id="dbg-cubes">—</b></div>
@@ -103,6 +106,12 @@ export class Debugger {
       case "roll--": s.rollMs = Math.max(100, s.rollMs - 100); break;
       case "ep++": s.extraPauseMs = (s.extraPauseMs ?? (s.tickMs - s.rollMs)) + 100; break;
       case "ep--": s.extraPauseMs = Math.max(0, (s.extraPauseMs ?? (s.tickMs - s.rollMs)) - 100); break;
+      case "hap":
+        if (g.haptics) {
+          g.haptics.setEnabled(!g.haptics.enabled);
+          g.haptics.capture(); // confirmation pulse
+        }
+        break;
       case "pause":  g.togglePaused(); break;
       case "step":   g.stepRequested = true; break;
       case "restart": g.start(); break;
@@ -139,5 +148,12 @@ export class Debugger {
     $("dbg-mark").textContent = m ? `(${m.x}, ${m.z})` : "—";
 
     $("dbg-pause").textContent = g.paused ? "resume" : "pause";
+    const hap = g.haptics;
+    if (hap) {
+      const label = !hap.supported ? "haptics: n/a"
+                  : hap.enabled    ? "haptics: ON"
+                                   : "haptics: off";
+      $("dbg-hap").textContent = label;
+    }
   }
 }
