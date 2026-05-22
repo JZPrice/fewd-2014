@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=4";
-import { Player } from "./player.js?v=4";
-import { Stage } from "./stage.js?v=4";
-import { STAGES } from "./stages.js?v=4";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=4";
+import { Grid } from "./grid.js?v=5";
+import { Player } from "./player.js?v=5";
+import { Stage } from "./stage.js?v=5";
+import { STAGES } from "./stages.js?v=5";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=5";
 
 const STATE = {
   TITLE: "title",
@@ -27,6 +27,21 @@ export class Game {
     this.state = STATE.TITLE;
     this._intermissionUntil = 0;
     this._lastFrame = performance.now();
+    this.paused = false;
+    this.stepRequested = false;
+    this._pausedAt = 0;
+  }
+
+  togglePaused() {
+    if (this.paused) {
+      if (this.stage) {
+        this.stage.nextTickAt += performance.now() - this._pausedAt;
+      }
+      this.paused = false;
+    } else {
+      this._pausedAt = performance.now();
+      this.paused = true;
+    }
   }
 
   start() {
@@ -190,6 +205,7 @@ export class Game {
   }
 
   _updatePlaying(now, dt) {
+    // Movement stays enabled while paused so the debugger user can reposition.
     const { dx, dz } = this.input.axis();
     if (dx !== 0 || dz !== 0) {
       const nx = this.player.gx + dx;
@@ -197,6 +213,13 @@ export class Game {
       if (this.grid.inBounds(nx, nz) && this.grid.hasTile(nx, nz)) {
         this.player.tryMove(dx, dz, now, this.grid);
       }
+    }
+
+    if (this.paused && !this.stepRequested) return;
+
+    if (this.stepRequested) {
+      this.stepRequested = false;
+      this.stage.nextTickAt = now; // force immediate tick this frame
     }
 
     if (now >= this.stage.nextTickAt) {

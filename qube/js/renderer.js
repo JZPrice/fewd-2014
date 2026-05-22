@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=4";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=5";
 
 export function gridToWorld(gx, gz) {
   return {

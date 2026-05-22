@@ -7,7 +7,8 @@
 export const STAGES = [
   {
     id: 1,
-    tickMs: 1000,
+    tickMs: 2000,
+    rollMs: 1000,
     waves: [
       {
         layout: [
@@ -41,7 +42,8 @@ export const STAGES = [
   },
   {
     id: 2,
-    tickMs: 880,
+    tickMs: 1600,
+    rollMs: 800,
     waves: [
       {
         layout: [
@@ -70,7 +72,8 @@ export const STAGES = [
   },
   {
     id: 3,
-    tickMs: 760,
+    tickMs: 1200,
+    rollMs: 600,
     waves: [
       {
         layout: [

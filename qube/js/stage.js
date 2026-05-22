@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=4";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=4";
+import { Cube } from "./cube.js?v=5";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=5";
 
 export class Stage {
   constructor(stageDef) {
@@ -10,6 +10,7 @@ export class Stage {
     this.forbiddenDestroyed = false;
     this.floorLost = false;
     this.tickMs = stageDef.tickMs;
+    this.rollMs = stageDef.rollMs ?? Math.min(stageDef.tickMs - 200, 1000);
     this.nextTickAt = 0;
   }
 
@@ -67,7 +68,7 @@ export class Stage {
       // Still off-screen behind the back row: just slide forward, no checks.
       if (fromZ >= GRID_D) {
         cube.gz = toZ;
-        if (toZ < GRID_D) cube.startRoll(fromZ, toZ, now, this.tickMs);
+        if (toZ < GRID_D) cube.startRoll(fromZ, toZ, now, this.rollMs);
         continue;
       }
 
@@ -90,7 +91,7 @@ export class Stage {
       }
 
       cube.gz = toZ;
-      cube.startRoll(fromZ, toZ, now, this.tickMs);
+      cube.startRoll(fromZ, toZ, now, this.rollMs);
 
       if (toZ <= 1) events.dangerNear = true;
     }

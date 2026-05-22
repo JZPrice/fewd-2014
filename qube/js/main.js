@@ -1,8 +1,9 @@
-import { Renderer } from "./renderer.js?v=4";
-import { Input } from "./input.js?v=4";
-import { AudioEngine } from "./audio.js?v=4";
-import { HUD } from "./hud.js?v=4";
-import { Game } from "./game.js?v=4";
+import { Renderer } from "./renderer.js?v=5";
+import { Input } from "./input.js?v=5";
+import { AudioEngine } from "./audio.js?v=5";
+import { HUD } from "./hud.js?v=5";
+import { Game } from "./game.js?v=5";
+import { Debugger } from "./debug.js?v=5";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -13,6 +14,7 @@ const hud = new HUD();
 input.attach();
 
 const game = new Game({ renderer, input, audio, hud });
+const dbg = new Debugger(game);
 
 // First user interaction unlocks the AudioContext (browsers require gesture).
 const unlockAudio = () => { audio.init(); audio.resume(); };
@@ -97,6 +99,7 @@ refreshOverlayClass();
 
 function loop(now) {
   game.update(now);
+  dbg.update();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
