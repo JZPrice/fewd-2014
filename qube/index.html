@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qube</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div id="hud">
+    <div class="hud-row">
+      <span class="label">STAGE</span><span id="hud-stage">1</span>
+    </div>
+    <div class="hud-row">
+      <span class="label">WAVE</span><span id="hud-wave">1</span>
+    </div>
+    <div class="hud-row">
+      <span class="label">CUBES</span><span id="hud-cubes">0</span>
+    </div>
+    <div class="hud-row">
+      <span class="label">ADV</span><span id="hud-adv">0</span>
+    </div>
+  </div>
+
+  <div id="message" class="overlay hidden"></div>
+
+  <div id="title" class="overlay">
+    <h1>QUBE</h1>
+    <p class="tagline">a rolling-block puzzle</p>
+    <div class="controls">
+      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</p>
+      <p><kbd>J</kbd> mark &nbsp; <kbd>K</kbd> trigger</p>
+      <p><kbd>L</kbd> advantage mark &nbsp; <kbd>Space</kbd> trigger</p>
+    </div>
+    <p class="prompt">press <kbd>Enter</kbd> to start</p>
+  </div>
+
+  <div id="gameover" class="overlay hidden">
+    <h1>GAME OVER</h1>
+    <p id="gameover-reason"></p>
+    <p class="prompt">press <kbd>Enter</kbd> to restart</p>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
