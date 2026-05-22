@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=10";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=11";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -13,7 +13,7 @@ export class Renderer {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(COLORS.ground);
-    this.scene.fog = new THREE.Fog(COLORS.ground, 10, 28);
+    this.scene.fog = new THREE.Fog(COLORS.ground, 14, 38);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -21,8 +21,10 @@ export class Renderer {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this._lookZ = -(GRID_D - 1) / 2;
-    this.camera = new THREE.PerspectiveCamera(56, 1, 0.1, 100);
-    this.camera.position.set(0, 4.8, 5.0);
+    this._baseCamY = 5.8;
+    this._baseCamZ = 5.8;
+    this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 100);
+    this.camera.position.set(0, this._baseCamY, this._baseCamZ);
     this.camera.lookAt(0, 0.4, this._lookZ);
 
     this._buildLights();
@@ -58,12 +60,12 @@ export class Renderer {
     dir.position.set(3, 8, 4);
     dir.castShadow = true;
     dir.shadow.mapSize.set(1024, 1024);
-    dir.shadow.camera.left = -6;
-    dir.shadow.camera.right = 6;
-    dir.shadow.camera.top = 4;
-    dir.shadow.camera.bottom = -14;
+    dir.shadow.camera.left = -8;
+    dir.shadow.camera.right = 8;
+    dir.shadow.camera.top = 6;
+    dir.shadow.camera.bottom = -20;
     dir.shadow.camera.near = 0.5;
-    dir.shadow.camera.far = 26;
+    dir.shadow.camera.far = 36;
     this.scene.add(dir);
   }
 
@@ -286,10 +288,25 @@ export class Renderer {
 
   updateCamera(player, dt) {
     const target = gridToWorld(player.gx, player.gz);
-    this._camTargetX += (target.x - this._camTargetX) * Math.min(1, dt * 3.5);
-    const baseX = this._camTargetX * 0.4;
-    this.camera.position.x = baseX;
-    this.camera.lookAt(baseX, 0.4, this._lookZ);
+    // Smooth follow with exponential lerp - frame-rate independent.
+    const k = 1 - Math.exp(-dt * 6.0);
+    this._camTargetX += (target.x - this._camTargetX) * k;
+    if (this._camTargetZ === undefined) this._camTargetZ = target.z;
+    this._camTargetZ += (target.z - this._camTargetZ) * k;
+
+    // Camera pans a fraction of the player's x so the playfield doesn't whip
+    // around, plus a subtle forward lean when the player advances down the
+    // runway. The fixed Y/Z from onResize provides the baseline framing.
+    const camX = this._camTargetX * 0.55;
+    const camZNudge = (this._camTargetZ - this._lookZ) * 0.08;
+    this.camera.position.x = camX;
+    this.camera.position.z = this._baseCamZ + camZNudge;
+
+    // LookAt biases toward the player so the whole frame leans where they
+    // are - this is what makes the camera feel like it's tracking them.
+    const lookX = this._camTargetX * 0.65;
+    const lookZ = this._lookZ * 0.5 + this._camTargetZ * 0.5;
+    this.camera.lookAt(lookX, 0.4, lookZ);
   }
 
   pulseMark(strength) {
@@ -312,16 +329,18 @@ export class Renderer {
     const aspect = w / h;
     this.camera.aspect = aspect;
 
+    let camY, camZ, fov;
     if (aspect < 0.9) {
-      this.camera.fov = 66;
-      this.camera.position.set(0, 7.4, 7.4);
+      fov = 68; camY = 9.0; camZ = 8.5;
     } else if (aspect < 1.4) {
-      this.camera.fov = 60;
-      this.camera.position.set(0, 5.8, 6.0);
+      fov = 62; camY = 7.0; camZ = 7.0;
     } else {
-      this.camera.fov = 56;
-      this.camera.position.set(0, 4.8, 5.0);
+      fov = 58; camY = 5.8; camZ = 5.8;
     }
+    this.camera.fov = fov;
+    this.camera.position.set(0, camY, camZ);
+    this._baseCamZ = camZ;
+    this._baseCamY = camY;
     this.camera.lookAt(0, 0.4, this._lookZ);
     this.camera.updateProjectionMatrix();
   }
