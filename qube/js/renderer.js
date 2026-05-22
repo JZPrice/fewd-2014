@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=5";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=6";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -13,7 +13,7 @@ export class Renderer {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(COLORS.ground);
-    this.scene.fog = new THREE.Fog(COLORS.ground, 8, 22);
+    this.scene.fog = new THREE.Fog(COLORS.ground, 10, 28);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -21,15 +21,15 @@ export class Renderer {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this._lookZ = -(GRID_D - 1) / 2;
-    this.camera = new THREE.PerspectiveCamera(54, 1, 0.1, 100);
-    this.camera.position.set(0, 4.4, 4.6);
+    this.camera = new THREE.PerspectiveCamera(56, 1, 0.1, 100);
+    this.camera.position.set(0, 4.8, 5.0);
     this.camera.lookAt(0, 0.4, this._lookZ);
 
     this._buildLights();
     this._buildFloor();
     this._buildPlayer();
     this._buildMark();
-    this._buildAdvMark();
+    this._buildBombs();
 
     this.cubeMeshes = new Map();
     this._cubeGeom = new THREE.BoxGeometry(TILE, TILE, TILE);
@@ -61,9 +61,9 @@ export class Renderer {
     dir.shadow.camera.left = -6;
     dir.shadow.camera.right = 6;
     dir.shadow.camera.top = 4;
-    dir.shadow.camera.bottom = -10;
+    dir.shadow.camera.bottom = -14;
     dir.shadow.camera.near = 0.5;
-    dir.shadow.camera.far = 20;
+    dir.shadow.camera.far = 26;
     this.scene.add(dir);
   }
 
@@ -115,25 +115,66 @@ export class Renderer {
     this.scene.add(this.markMesh);
   }
 
-  _buildAdvMark() {
-    this.advMarkMesh = new THREE.Group();
-    const g = new THREE.PlaneGeometry(TILE * 0.85, TILE * 0.85);
-    const m = new THREE.MeshBasicMaterial({
-      color: COLORS.advMark,
+  _buildBombs() {
+    // Pool of up to N bomb visuals — each is a floating tetrahedron above its
+    // tile plus a 3x3 ring of subtle red tile overlays showing the blast area.
+    this._bombPool = [];
+    this._bombGeom = new THREE.TetrahedronGeometry(0.32);
+    this._bombMat = new THREE.MeshLambertMaterial({
+      color: COLORS.bomb,
+      emissive: COLORS.bombAccent,
+      emissiveIntensity: 0.75,
+    });
+    this._bombTileGeom = new THREE.PlaneGeometry(TILE * 0.9, TILE * 0.9);
+    this._bombTileMat = new THREE.MeshBasicMaterial({
+      color: COLORS.bomb,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.18,
       side: THREE.DoubleSide,
     });
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const tile = new THREE.Mesh(g, m);
-        tile.rotation.x = -Math.PI / 2;
-        tile.position.set(dx * TILE, 0.014, -dz * TILE);
-        this.advMarkMesh.add(tile);
+    this._bombGroup = new THREE.Group();
+    this.scene.add(this._bombGroup);
+  }
+
+  _ensureBombVisuals(count) {
+    while (this._bombPool.length < count) {
+      const group = new THREE.Group();
+      const tri = new THREE.Mesh(this._bombGeom, this._bombMat);
+      tri.castShadow = true;
+      group.add(tri);
+      const tiles = [];
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const t = new THREE.Mesh(this._bombTileGeom, this._bombTileMat);
+          t.rotation.x = -Math.PI / 2;
+          t.position.set(dx * TILE, 0.013, -dz * TILE);
+          tiles.push(t);
+          group.add(t);
+        }
+      }
+      this._bombGroup.add(group);
+      this._bombPool.push({ group, tri, tiles });
+    }
+  }
+
+  syncBombs(bombs, now) {
+    this._ensureBombVisuals(bombs.length);
+    for (let i = 0; i < this._bombPool.length; i++) {
+      const slot = this._bombPool[i];
+      if (i < bombs.length) {
+        const b = bombs[i];
+        const p = gridToWorld(b.cx, b.cz);
+        slot.group.position.set(p.x, 0, p.z);
+        // Floating bob + rotation
+        const t = now / 1000;
+        slot.tri.position.y = 1.0 + Math.sin(t * 2.2 + i) * 0.12;
+        slot.tri.rotation.y = t * 1.4 + i;
+        slot.tri.rotation.x = Math.sin(t * 1.1 + i) * 0.2;
+        slot.group.visible = true;
+      } else {
+        slot.group.visible = false;
       }
     }
-    this.advMarkMesh.visible = false;
-    this.scene.add(this.advMarkMesh);
   }
 
   _ensureCubeMesh(cube) {
@@ -241,13 +282,6 @@ export class Renderer {
     } else {
       this.markMesh.visible = false;
     }
-    if (grid.advMark) {
-      const p = gridToWorld(grid.advMark.cx, grid.advMark.cz);
-      this.advMarkMesh.position.set(p.x, 0, p.z);
-      this.advMarkMesh.visible = true;
-    } else {
-      this.advMarkMesh.visible = false;
-    }
   }
 
   updateCamera(player, dt) {
@@ -279,14 +313,14 @@ export class Renderer {
     this.camera.aspect = aspect;
 
     if (aspect < 0.9) {
-      this.camera.fov = 64;
-      this.camera.position.set(0, 6.4, 6.8);
+      this.camera.fov = 66;
+      this.camera.position.set(0, 7.4, 7.4);
     } else if (aspect < 1.4) {
-      this.camera.fov = 58;
-      this.camera.position.set(0, 5.2, 5.6);
+      this.camera.fov = 60;
+      this.camera.position.set(0, 5.8, 6.0);
     } else {
-      this.camera.fov = 54;
-      this.camera.position.set(0, 4.4, 4.6);
+      this.camera.fov = 56;
+      this.camera.position.set(0, 4.8, 5.0);
     }
     this.camera.lookAt(0, 0.4, this._lookZ);
     this.camera.updateProjectionMatrix();

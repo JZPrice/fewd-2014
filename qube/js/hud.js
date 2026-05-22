@@ -3,7 +3,7 @@ export class HUD {
     this.stageEl = document.getElementById("hud-stage");
     this.waveEl = document.getElementById("hud-wave");
     this.cubesEl = document.getElementById("hud-cubes");
-    this.advEl = document.getElementById("hud-adv");
+    this.bombsEl = document.getElementById("hud-bombs");
     this.titleEl = document.getElementById("title");
     this.gameoverEl = document.getElementById("gameover");
     this.gameoverReason = document.getElementById("gameover-reason");
@@ -14,7 +14,7 @@ export class HUD {
   setStage(n) { this.stageEl.textContent = String(n); }
   setWave(n) { this.waveEl.textContent = String(n); }
   setCubes(n) { this.cubesEl.textContent = String(n); }
-  setAdv(n) { this.advEl.textContent = String(n); }
+  setBombs(n) { if (this.bombsEl) this.bombsEl.textContent = String(n); }
 
   showTitle()    { this.titleEl.classList.remove("hidden"); }
   hideTitle()    { this.titleEl.classList.add("hidden"); }

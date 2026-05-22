@@ -11,7 +11,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <link rel="stylesheet" href="css/style.css?v=5" />
+  <link rel="stylesheet" href="css/style.css?v=6" />
   <script type="importmap">
     {
       "imports": {
@@ -33,6 +33,9 @@
     <div class="hud-row">
       <span class="label">CUBES</span><span id="hud-cubes">0</span>
     </div>
+    <div class="hud-row">
+      <span class="label">BOMBS</span><span id="hud-bombs">0</span>
+    </div>
   </div>
 
   <div id="message" class="overlay hidden"></div>
@@ -45,8 +48,9 @@
       <button class="tbtn dpad-down"  data-hold="arrowdown"  aria-label="down">▼</button>
     </div>
     <div class="actions">
-      <button class="tbtn act-mark"    data-action="mark"    aria-label="mark">MARK</button>
-      <button class="tbtn act-trigger" data-action="trigger" aria-label="fire">FIRE</button>
+      <button class="tbtn act-mark"    data-action="mark"     aria-label="mark">MARK</button>
+      <button class="tbtn act-trigger" data-action="trigger"  aria-label="fire">FIRE</button>
+      <button class="tbtn act-bomb"    data-action="detonate" aria-label="detonate">BOMB</button>
     </div>
   </div>
 
@@ -55,13 +59,15 @@
     <p class="tagline">a rolling-block puzzle</p>
     <div class="controls kbd-only">
       <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</p>
-      <p><kbd>J</kbd> mark &nbsp; <kbd>K</kbd> fire</p>
-      <p>fire on a green cube captures a 3×3</p>
+      <p><kbd>J</kbd> mark &nbsp; <kbd>K</kbd> fire &nbsp; <kbd>L</kbd> detonate</p>
+      <p>fire on a green cube places a bomb</p>
+      <p>detonate blasts all bombs (3×3 each) at once</p>
     </div>
     <div class="controls touch-only">
       <p>D-pad to move</p>
       <p>MARK then FIRE to capture</p>
-      <p>fire on a green cube captures a 3×3</p>
+      <p>fire on a green cube places a bomb</p>
+      <p>BOMB detonates all bombs (3×3 each) at once</p>
     </div>
     <p class="prompt kbd-only">press <kbd>Enter</kbd> to start</p>
     <p class="prompt touch-only">tap to start</p>
@@ -74,6 +80,6 @@
     <p class="prompt touch-only">tap to restart</p>
   </div>
 
-  <script type="module" src="js/main.js?v=5"></script>
+  <script type="module" src="js/main.js?v=6"></script>
 </body>
 </html>

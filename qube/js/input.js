@@ -22,6 +22,7 @@ export class Input {
     const actions = {
       "j": "mark",
       "k": "trigger",
+      "l": "detonate",
       "enter": "start",
     };
     if (actions[k]) this.queue.push(actions[k]);

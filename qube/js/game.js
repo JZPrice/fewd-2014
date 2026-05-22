@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=5";
-import { Player } from "./player.js?v=5";
-import { Stage } from "./stage.js?v=5";
-import { STAGES } from "./stages.js?v=5";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=5";
+import { Grid } from "./grid.js?v=6";
+import { Player } from "./player.js?v=6";
+import { Stage } from "./stage.js?v=6";
+import { STAGES } from "./stages.js?v=6";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=6";
 
 const STATE = {
   TITLE: "title",
@@ -65,25 +65,41 @@ export class Game {
     this.hud.setStage(def.id);
     this.hud.setWave(this.stage.waveIndex + 1);
     this.hud.setCubes(this.stage.remainingCubes());
+    this.hud.setBombs(0);
     this.hud.flash(`STAGE ${def.id}`, 1000);
   }
 
   _beginNextWave(now) {
     this.stage.advanceWave();
     this.grid.clearMark();
+    this.grid.clearBombs();
     this.renderer.clearAllCubes();
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.setWave(this.stage.waveIndex + 1);
     this.hud.setCubes(this.stage.remainingCubes());
+    this.hud.setBombs(0);
   }
 
   _onWaveCleared(now) {
+    // Resolve any deferred row drops from bomb-killed forbidden cubes.
+    const drops = this.stage.pendingRowDrop;
+    if (drops > 0) {
+      for (let i = 0; i < drops; i++) {
+        if (this.grid.removeBackRow()) this.stage.floorLost = true;
+      }
+      this.audio.boom();
+      this.hud.flash(`-${drops} ROW${drops > 1 ? "S" : ""}`, 1100);
+      this.stage.pendingRowDrop = 0;
+    }
+    this.grid.clearBombs();
+    this.hud.setBombs(0);
+
     if (this.stage.perfect()) {
       const restored = this.grid.restoreBackRow();
       this.hud.flash(restored ? "PERFECT  +ROW" : "PERFECT", 1200);
       this.audio.perfect();
-    } else {
+    } else if (drops === 0) {
       this.hud.flash("CLEAR", 900);
     }
     if (this.stage.hasMoreWaves()) {
@@ -117,8 +133,9 @@ export class Game {
     }
   }
 
-  // FIRE: capture whatever cube is currently on the mark. If it's a green
-  // (advantage) cube, expand the capture to the 3x3 around it.
+  // FIRE: if a normal cube sits on the mark, capture it; if it's a green
+  // cube, drop a bomb (3x3 deferred capture) in its place; if it's forbidden,
+  // immediate 3-tile hole forward (the dangerous direct hit).
   _triggerMark() {
     if (this.state !== STATE.PLAYING) return;
     const m = this.grid.mark;
@@ -129,28 +146,65 @@ export class Game {
       return;
     }
 
-    const expand = hit.isAdvantage();
-    const toCapture = expand
-      ? this.stage.cubes.filter(c =>
-          !c.dead && Math.abs(c.gx - m.x) <= 1 && Math.abs(c.gz - m.z) <= 1)
-      : [hit];
-
-    let anyForbidden = false;
-    for (const cube of toCapture) {
-      cube.dead = true;
-      if (cube.isForbidden()) {
-        anyForbidden = true;
-        this.stage.forbiddenDestroyed = true;
-        this._applyForbiddenBlast(cube.gx, cube.gz);
-      }
+    hit.dead = true;
+    if (hit.isAdvantage()) {
+      this.grid.addBomb(m.x, m.z);
+      this.audio.advCharge();
+      this.hud.setBombs(this.grid.bombs.length);
+    } else if (hit.isForbidden()) {
+      this.stage.forbiddenDestroyed = true;
+      this._applyForbiddenBlast(m.x, m.z);
+      this.audio.boom();
+    } else {
+      this.audio.capture();
     }
-    if (anyForbidden) this.audio.boom();
-    else this.audio.capture();
 
+    this._extraPause();
     this.grid.clearMark();
     this.hud.setCubes(this.stage.remainingCubes());
 
     if (this.stage.isCleared()) this._onWaveCleared(performance.now());
+  }
+
+  // DETONATE: blow up every active bomb at once. Forbidden cubes caught in
+  // the blast don't punch holes; instead they queue a back-row drop that
+  // resolves when the wave clears.
+  _detonateBombs() {
+    if (this.state !== STATE.PLAYING) return;
+    const bombs = this.grid.bombs;
+    if (bombs.length === 0) return;
+
+    const killedSet = new Set();
+    for (const bomb of bombs) {
+      for (const cube of this.stage.cubes) {
+        if (cube.dead || killedSet.has(cube.id)) continue;
+        if (Math.abs(cube.gx - bomb.cx) <= 1 && Math.abs(cube.gz - bomb.cz) <= 1) {
+          killedSet.add(cube.id);
+          cube.dead = true;
+          if (cube.isForbidden()) {
+            this.stage.pendingRowDrop++;
+            this.stage.forbiddenDestroyed = true;
+          }
+        }
+      }
+    }
+
+    this.grid.clearBombs();
+    this.hud.setBombs(0);
+
+    if (killedSet.size > 0) {
+      this.audio.boom();
+      this._extraPause();
+    }
+    this.hud.setCubes(this.stage.remainingCubes());
+
+    if (this.stage.isCleared()) this._onWaveCleared(performance.now());
+  }
+
+  _extraPause() {
+    if (!this.stage) return;
+    const ms = Math.max(0, (this.stage.extraPauseMs ?? (this.stage.tickMs - this.stage.rollMs)));
+    this.stage.nextTickAt += ms;
   }
 
   _applyForbiddenBlast(x, z) {
@@ -162,6 +216,9 @@ export class Game {
         this.stage.floorLost = true;
       }
     }
+    // Any bomb whose center tile just vanished should go with it.
+    this.grid.removeBombsWhere(b => !this.grid.hasTile(b.cx, b.cz));
+    this.hud.setBombs(this.grid.bombs.length);
   }
 
   // --- main loop ---
@@ -182,6 +239,7 @@ export class Game {
       if (this.state !== STATE.PLAYING) continue;
       if (action === "mark") this._placeMark();
       else if (action === "trigger") this._triggerMark();
+      else if (action === "detonate") this._detonateBombs();
     }
 
     if (this.state === STATE.PLAYING) {
@@ -199,6 +257,7 @@ export class Game {
     this.renderer.syncCubes(this.stage ? this.stage.cubes.filter(c => !c.dead) : [], now);
     this.renderer.syncPlayer(this.player, now);
     this.renderer.syncMarks(this.grid);
+    this.renderer.syncBombs(this.grid.bombs, now);
     this.renderer.updateCamera(this.player, dt);
     this.renderer.step(dt);
     this.renderer.render();

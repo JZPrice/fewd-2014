@@ -25,6 +25,8 @@ export class Debugger {
       <div class="dbg-stat"><span>state</span><b id="dbg-state">—</b></div>
       <div class="dbg-stat"><span>stage / wave</span><b id="dbg-sw">—</b></div>
       <div class="dbg-stat"><span>cubes left</span><b id="dbg-cubes">—</b></div>
+      <div class="dbg-stat"><span>bombs</span><b id="dbg-bombs">—</b></div>
+      <div class="dbg-stat"><span>row drop pending</span><b id="dbg-drop">—</b></div>
       <div class="dbg-stat"><span>player</span><b id="dbg-player">—</b></div>
       <div class="dbg-stat"><span>mark</span><b id="dbg-mark">—</b></div>
       <div class="dbg-stat"><span>next tick</span><b id="dbg-next">—</b></div>
@@ -43,6 +45,14 @@ export class Debugger {
           <button data-act="roll--">−100</button>
           <b id="dbg-rollms">—</b>
           <button data-act="roll++">+100</button>
+        </span>
+      </div>
+      <div class="dbg-stat">
+        <span>extraPauseMs</span>
+        <span class="dbg-tune">
+          <button data-act="ep--">−100</button>
+          <b id="dbg-epms">—</b>
+          <button data-act="ep++">+100</button>
         </span>
       </div>
       <div class="dbg-stat">
@@ -91,6 +101,8 @@ export class Debugger {
       case "tick--": s.tickMs = Math.max(200, s.tickMs - 100); break;
       case "roll++": s.rollMs = Math.min(s.tickMs, s.rollMs + 100); break;
       case "roll--": s.rollMs = Math.max(100, s.rollMs - 100); break;
+      case "ep++": s.extraPauseMs = (s.extraPauseMs ?? (s.tickMs - s.rollMs)) + 100; break;
+      case "ep--": s.extraPauseMs = Math.max(0, (s.extraPauseMs ?? (s.tickMs - s.rollMs)) - 100); break;
       case "pause":  g.togglePaused(); break;
       case "step":   g.stepRequested = true; break;
       case "restart": g.start(); break;
@@ -110,8 +122,12 @@ export class Debugger {
     if (s) {
       $("dbg-sw").textContent = `${s.def.id} / ${s.waveIndex + 1}`;
       $("dbg-cubes").textContent = s.remainingCubes();
+      $("dbg-bombs").textContent = g.grid.bombs.length;
+      $("dbg-drop").textContent = s.pendingRowDrop ?? 0;
       $("dbg-tickms").textContent = `${s.tickMs}ms`;
       $("dbg-rollms").textContent = `${s.rollMs}ms`;
+      const ep = s.extraPauseMs ?? (s.tickMs - s.rollMs);
+      $("dbg-epms").textContent = `${ep}ms`;
       const pause = Math.max(0, s.tickMs - s.rollMs);
       $("dbg-ratio").textContent = `${(s.rollMs/1000).toFixed(2)}s roll + ${(pause/1000).toFixed(2)}s pause`;
       const next = Math.max(0, (s.nextTickAt - performance.now()) / 1000);

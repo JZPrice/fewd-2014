@@ -1,5 +1,5 @@
 export const GRID_W = 4;
-export const GRID_D = 10;
+export const GRID_D = 12;
 export const TILE = 1;
 
 export const MOVE_COOLDOWN_MS = 130;
@@ -24,6 +24,8 @@ export const COLORS = {
   player:     0xffd24c,
   sky:        0x2a3454,
   ground:     0x0a0a12,
+  bomb:       0xff5040,
+  bombAccent: 0xffaa66,
 };
 
 export const FORBIDDEN_HOLE_DEPTH = 3;

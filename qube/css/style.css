@@ -194,24 +194,26 @@ body.touch #touch-controls {
 .dpad-right { top: 58px; right: 0; }
 .dpad-down  { bottom: 0; left: 58px; }
 
-/* Actions: two large buttons anchored bottom-right */
+/* Actions: three large buttons anchored bottom-right */
 .actions {
   position: absolute;
   right: max(16px, env(safe-area-inset-right));
   bottom: max(16px, env(safe-area-inset-bottom));
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 .actions .tbtn {
   position: static;
-  width: 78px;
-  height: 78px;
-  font-size: 14px;
-  border-radius: 22px;
+  width: 72px;
+  height: 72px;
+  font-size: 13px;
+  border-radius: 20px;
 }
 .act-mark    { color: #bfe2ff; }
 .act-trigger { color: #ffe190; border-color: rgba(255,210,140,0.45); }
+.act-bomb    { color: #ffb3a0; border-color: rgba(255,120,90,0.55); background: rgba(60, 20, 24, 0.5); }
+.act-bomb.pressed { background: rgba(255, 90, 60, 0.55); border-color: rgba(255,180,150,0.8); }
 
 /* show/hide based on input mode */
 .touch-only { display: none; }
@@ -227,8 +229,8 @@ body.touch .touch-only { display: block; }
   .dpad-left  { top: 50px; left: 0; }
   .dpad-right { top: 50px; right: 0; }
   .dpad-down  { bottom: 0; left: 50px; }
-  .actions { gap: 10px; }
-  .actions .tbtn { width: 66px; height: 66px; }
+  .actions { gap: 8px; }
+  .actions .tbtn { width: 58px; height: 58px; font-size: 11px; border-radius: 16px; }
 }
 
 /* hide controls during title/gameover overlays */

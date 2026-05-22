@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=5";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=5";
+import { Cube } from "./cube.js?v=6";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=6";
 
 export class Stage {
   constructor(stageDef) {
@@ -12,6 +12,7 @@ export class Stage {
     this.tickMs = stageDef.tickMs;
     this.rollMs = stageDef.rollMs ?? Math.min(stageDef.tickMs - 200, 1000);
     this.nextTickAt = 0;
+    this.pendingRowDrop = 0;
   }
 
   startWave(now) {
@@ -20,6 +21,7 @@ export class Stage {
     this.cubes = [];
     this.forbiddenDestroyed = false;
     this.floorLost = false;
+    this.pendingRowDrop = 0;
     const rows = layout.length;
     // First entry of layout = furthest back (last to arrive).
     // Last entry of layout = closest to player (first to arrive).
