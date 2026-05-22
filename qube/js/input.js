@@ -53,4 +53,9 @@ export class Input {
   clear() {
     this.queue.length = 0;
   }
+
+  // Virtual input from on-screen touch controls.
+  holdVirtual(name) { this.held.add(name); }
+  releaseVirtual(name) { this.held.delete(name); }
+  pushAction(name) { this.queue.push(name); }
 }

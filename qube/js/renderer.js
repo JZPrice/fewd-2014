@@ -252,8 +252,9 @@ export class Renderer {
   updateCamera(player, dt) {
     const target = gridToWorld(player.gx, player.gz);
     this._camTargetX += (target.x - this._camTargetX) * Math.min(1, dt * 3.5);
-    this.camera.position.x = this._camTargetX * 0.4;
-    this.camera.lookAt(this._camTargetX * 0.4, 0.4, -3);
+    const baseX = this._camTargetX * 0.4;
+    this.camera.position.x = baseX;
+    this.camera.lookAt(baseX, 0.4, -3);
   }
 
   pulseMark(strength) {
@@ -273,7 +274,23 @@ export class Renderer {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
+    const aspect = w / h;
+    this.camera.aspect = aspect;
+
+    // Re-frame for portrait screens: pull the camera back and up so the
+    // playfield fits without the front row falling off the bottom of the
+    // viewport. Tall screens get a tighter FOV; wide screens stay punchy.
+    if (aspect < 0.9) {
+      this.camera.fov = 62;
+      this.camera.position.set(0, 5.4, 6.2);
+    } else if (aspect < 1.4) {
+      this.camera.fov = 56;
+      this.camera.position.set(0, 4.4, 5.2);
+    } else {
+      this.camera.fov = 52;
+      this.camera.position.set(0, 3.6, 4.2);
+    }
+    this.camera.lookAt(0, 0.4, -3);
     this.camera.updateProjectionMatrix();
   }
 
