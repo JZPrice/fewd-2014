@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=11";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=11";
+import { Cube } from "./cube.js?v=12";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=12";
 
 export class Stage {
   constructor(stageDef) {
@@ -94,11 +94,8 @@ export class Stage {
         continue;
       }
 
-      // Lands on player's tile: crushed.
-      if (toZ === player.gz && cube.gx === player.gx) {
-        events.crushed = true;
-      }
-
+      // Crush check has moved to Game's per-frame check at the roll's
+      // halfway point - this gives the player half the roll to dodge.
       cube.gz = toZ;
       cube.startRoll(fromZ, toZ, now, this.rollMs);
 

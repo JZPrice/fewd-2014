@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=11";
-import { Player } from "./player.js?v=11";
-import { Stage } from "./stage.js?v=11";
-import { STAGES } from "./stages.js?v=11";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=11";
+import { Grid } from "./grid.js?v=12";
+import { Player } from "./player.js?v=12";
+import { Stage } from "./stage.js?v=12";
+import { STAGES } from "./stages.js?v=12";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=12";
 
 const STATE = {
   TITLE: "title",
@@ -300,7 +300,6 @@ export class Game {
 
       this.hud.setCubes(this.stage.remainingCubes());
 
-      if (events.crushed) { this._die("crushed by a cube"); return; }
       if (events.fellOff) { this._die("a cube reached the edge"); return; }
       if (!this.grid.hasTile(this.player.gx, this.player.gz)) {
         this._die("fell through the floor"); return;
@@ -309,6 +308,19 @@ export class Game {
       if (this.stage.isCleared()) {
         this._onWaveCleared(now);
         return;
+      }
+    }
+
+    // Mid-roll crush: any cube past the 45-degree mark of its roll, with
+    // the player still in the target tile, lands. First half of the roll
+    // is the player's dodge window.
+    for (const cube of this.stage.cubes) {
+      if (cube.dead || !cube.roll) continue;
+      if (cube.gx === this.player.gx && cube.gz === this.player.gz) {
+        if (cube.rollProgress(now) >= 0.5) {
+          this._die("crushed by a cube");
+          return;
+        }
       }
     }
   }
