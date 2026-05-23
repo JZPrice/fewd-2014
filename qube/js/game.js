@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=26";
-import { Player } from "./player.js?v=26";
-import { Stage } from "./stage.js?v=26";
-import { STAGES } from "./stages.js?v=26";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=26";
+import { Grid } from "./grid.js?v=27";
+import { Player } from "./player.js?v=27";
+import { Stage } from "./stage.js?v=27";
+import { STAGES } from "./stages.js?v=27";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=27";
 
 const STATE = {
   TITLE: "title",
@@ -235,7 +235,8 @@ export class Game {
 
   _extraPause() {
     if (!this.stage) return;
-    const ms = Math.max(0, (this.stage.extraPauseMs ?? (this.stage.tickMs - this.stage.rollMs)));
+    const base = this.stage.extraPauseMs ?? (this.stage.tickMs - this.stage.rollMs);
+    const ms = Math.max(0, base / this.stage.speedMultiplier);
     this.stage.nextTickAt += ms;
   }
 
@@ -303,6 +304,18 @@ export class Game {
     this.player.setIntent(dx, dz);
     this.player.update(dt, now, this.grid, this.stage);
 
+    // Fast-forward: hold SHIFT (kbd) or the on-screen FAST button to make
+    // blocks tick + roll 2x faster. Rescale the remaining wait when the
+    // multiplier changes so the user feels it instantly.
+    const wantFast = this.input.held.has("shift") || this.input.held.has("fast");
+    const targetMult = wantFast ? 2 : 1;
+    const oldMult = this.stage.speedMultiplier;
+    if (oldMult !== targetMult) {
+      const remaining = Math.max(0, this.stage.nextTickAt - now);
+      this.stage.nextTickAt = now + remaining * (oldMult / targetMult);
+      this.stage.speedMultiplier = targetMult;
+    }
+
     if (this.paused && !this.stepRequested) return;
 
     if (this.stepRequested) {
@@ -312,7 +325,7 @@ export class Game {
 
     if (now >= this.stage.nextTickAt) {
       const events = this.stage.tick(now, this.player, this.grid);
-      this.stage.nextTickAt += this.stage.tickMs;
+      this.stage.nextTickAt += this.stage.tickMs / this.stage.speedMultiplier;
       this.audio.beat();
 
       if (events.dangerNear) { this.audio.danger(); this.haptics.danger(); }

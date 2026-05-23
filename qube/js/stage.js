@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=26";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=26";
+import { Cube } from "./cube.js?v=27";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=27";
 
 export class Stage {
   constructor(stageDef) {
@@ -14,6 +14,9 @@ export class Stage {
     this.nextTickAt = 0;
     this.pendingRowDrop = 0;
     this.forbiddenFellOff = 0;
+    // Player-held fast-forward multiplier. >1 = ticks fire and cubes roll
+    // proportionally faster. Game updates this each frame from input state.
+    this.speedMultiplier = 1;
   }
 
   startWave(now) {
@@ -93,7 +96,7 @@ export class Stage {
       // Still off-screen behind the back row: just slide forward, no checks.
       if (fromZ >= GRID_D) {
         cube.gz = toZ;
-        if (toZ < GRID_D) cube.startRoll(fromZ, toZ, now, this.rollMs);
+        if (toZ < GRID_D) cube.startRoll(fromZ, toZ, now, this.rollMs / this.speedMultiplier);
         continue;
       }
 
@@ -131,7 +134,7 @@ export class Stage {
       // Crush check has moved to Game's per-frame check at the roll's
       // halfway point - this gives the player half the roll to dodge.
       cube.gz = toZ;
-      cube.startRoll(fromZ, toZ, now, this.rollMs);
+      cube.startRoll(fromZ, toZ, now, this.rollMs / this.speedMultiplier);
 
       if (toZ <= front + 1) events.dangerNear = true;
     }

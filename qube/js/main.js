@@ -1,11 +1,11 @@
-import { Renderer } from "./renderer.js?v=26";
-import { Input } from "./input.js?v=26";
-import { AudioEngine } from "./audio.js?v=26";
-import { HUD } from "./hud.js?v=26";
-import { Game } from "./game.js?v=26";
-import { Debugger } from "./debug.js?v=26";
-import { Haptics } from "./haptics.js?v=26";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=26";
+import { Renderer } from "./renderer.js?v=27";
+import { Input } from "./input.js?v=27";
+import { AudioEngine } from "./audio.js?v=27";
+import { HUD } from "./hud.js?v=27";
+import { Game } from "./game.js?v=27";
+import { Debugger } from "./debug.js?v=27";
+import { Haptics } from "./haptics.js?v=27";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=27";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -102,6 +102,30 @@ document.querySelectorAll(".tbtn[data-hold]").forEach((btn) => {
 document.querySelectorAll(".tbtn[data-action]").forEach((btn) => {
   bindActionButton(btn, btn.dataset.action);
 });
+
+// Fast-forward button at top-center (hold to make blocks tick 2x faster).
+// Lives outside the thumb zone so the player can reach it without losing
+// their grip on the joystick / actions.
+const fastBtn = document.getElementById("fast-btn");
+if (fastBtn) {
+  const fastDown = (e) => {
+    e.preventDefault();
+    fastBtn.classList.add("pressed");
+    input.holdVirtual("fast");
+    try { fastBtn.setPointerCapture?.(e.pointerId); } catch (_) {}
+  };
+  const fastUp = () => {
+    fastBtn.classList.remove("pressed");
+    input.releaseVirtual("fast");
+  };
+  fastBtn.addEventListener("pointerdown", fastDown);
+  fastBtn.addEventListener("pointerup", fastUp);
+  fastBtn.addEventListener("pointercancel", fastUp);
+  fastBtn.addEventListener("pointerleave", fastUp);
+  fastBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+  window.addEventListener("pointerup", fastUp);
+  window.addEventListener("blur", fastUp);
+}
 
 // --- Virtual joystick -------------------------------------------------------
 

@@ -313,6 +313,37 @@ body.overlay-shown #touch-controls { opacity: 0.25; pointer-events: none; }
 
 /* --- debugger ---------------------------------------------------------- */
 
+#fast-btn {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  height: 38px;
+  padding: 0 16px;
+  background: rgba(20, 30, 50, 0.55);
+  border: 1px solid rgba(180, 200, 255, 0.32);
+  color: #c8e0ff;
+  font: 700 12px/1 inherit;
+  letter-spacing: 0.16em;
+  border-radius: 19px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.08s ease, border-color 0.08s ease, transform 0.06s ease;
+}
+#fast-btn.pressed {
+  background: rgba(120, 200, 255, 0.55);
+  border-color: rgba(200, 230, 255, 0.85);
+  color: #ffffff;
+  transform: translateX(-50%) scale(0.96);
+}
+body.overlay-shown #fast-btn { opacity: 0.35; pointer-events: none; }
+
 #version-stamp {
   position: fixed;
   top: max(10px, env(safe-area-inset-top));
