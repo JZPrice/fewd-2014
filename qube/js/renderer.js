@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=23";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=24";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -353,7 +353,20 @@ export class Renderer {
     for (const cube of cubes) {
       seen.add(cube.id);
       const { pivot, mesh } = this._ensureCubeMesh(cube);
-      if (cube.roll) {
+      if (cube.fallingOff) {
+        // Tumbling off the edge: continues forward in +Z while accelerating
+        // downward in Y, rolling well past the 90 degree tip so it looks
+        // like it's plummeting.
+        const u = cube.fallOffProgress(now);
+        const fromP = gridToWorld(cube.gx, cube.gz);
+        pivot.position.set(
+          fromP.x,
+          -u * u * 7,                  // quadratic (gravity-ish) drop
+          fromP.z + TILE / 2 + u * 2,  // continue rolling forward ~2 tiles
+        );
+        pivot.rotation.x = u * Math.PI * 1.4; // tumble past vertical
+        mesh.position.set(0, 0.5, -0.5);
+      } else if (cube.roll) {
         const u = cube.rollProgress(now);
         // Cubes roll toward the player (+Z in world). Pivot sits at the leading
         // (+Z) edge of the source tile so the cube tips forward.

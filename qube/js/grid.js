@@ -1,4 +1,4 @@
-import { GRID_W, GRID_D } from "./config.js?v=23";
+import { GRID_W, GRID_D } from "./config.js?v=24";
 
 export class Grid {
   constructor() {
@@ -44,6 +44,23 @@ export class Grid {
       if (!this.tiles[x][z]) { this.tiles[x][z] = true; restored = true; }
     }
     return restored;
+  }
+
+  // Find the front-most row currently missing any tile and restore it. Used
+  // for the "forbidden cube fell off harmlessly" bonus: each one rebuilds
+  // the platform from the front edge inward.
+  restoreFrontRow() {
+    for (let z = 0; z < this.d; z++) {
+      let anyMissing = false;
+      for (let x = 0; x < this.w; x++) {
+        if (!this.tiles[x][z]) { anyMissing = true; break; }
+      }
+      if (anyMissing) {
+        for (let x = 0; x < this.w; x++) this.tiles[x][z] = true;
+        return true;
+      }
+    }
+    return false;
   }
 
   setMark(x, z) {

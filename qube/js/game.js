@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=23";
-import { Player } from "./player.js?v=23";
-import { Stage } from "./stage.js?v=23";
-import { STAGES } from "./stages.js?v=23";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=23";
+import { Grid } from "./grid.js?v=24";
+import { Player } from "./player.js?v=24";
+import { Stage } from "./stage.js?v=24";
+import { STAGES } from "./stages.js?v=24";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=24";
 
 const STATE = {
   TITLE: "title",
@@ -99,12 +99,27 @@ export class Game {
     this.grid.clearBombs();
     this.hud.setBombs(0);
 
+    // Bonus: each forbidden cube that rolled off harmlessly rebuilds one
+    // missing front-edge row. Lets the player earn back ground that normal
+    // cubes took, by playing safely around the forbidden ones.
+    const fellOff = this.stage.forbiddenFellOff ?? 0;
+    let restoredFromForbidden = 0;
+    for (let i = 0; i < fellOff; i++) {
+      if (this.grid.restoreFrontRow()) restoredFromForbidden++;
+    }
+    this.stage.forbiddenFellOff = 0;
+    if (restoredFromForbidden > 0) {
+      this.hud.flash(`+${restoredFromForbidden} ROW${restoredFromForbidden > 1 ? "S" : ""}`, 1100);
+      this.audio.perfect();
+      this.haptics.rowDrop();
+    }
+
     if (this.stage.perfect()) {
       const restored = this.grid.restoreBackRow();
       this.hud.flash(restored ? "PERFECT  +ROW" : "PERFECT", 1200);
       this.audio.perfect();
       this.haptics.perfect();
-    } else if (drops === 0) {
+    } else if (drops === 0 && restoredFromForbidden === 0) {
       this.hud.flash("CLEAR", 900);
     }
     if (this.stage.hasMoreWaves()) {
@@ -322,11 +337,24 @@ export class Game {
       }
     }
 
+    // Reap cubes whose fall-off animation has finished.
+    for (const cube of this.stage.cubes) {
+      if (cube.fallingOff && (now - cube.fallOffT0) >= cube.fallOffDuration) {
+        cube.dead = true;
+        cube.fallingOff = false;
+      }
+    }
+    // Wave can clear once the last falling cube has finished its animation.
+    if (this.stage.isCleared()) {
+      this._onWaveCleared(now);
+      return;
+    }
+
     // Mid-roll crush: any cube past the 45-degree mark of its roll, with
     // the player still in the target tile, lands. First half of the roll
     // is the player's dodge window.
     for (const cube of this.stage.cubes) {
-      if (cube.dead || !cube.roll) continue;
+      if (cube.dead || cube.fallingOff || !cube.roll) continue;
       if (cube.gx === this.player.tx && cube.gz === this.player.tz) {
         if (cube.rollProgress(now) >= 0.5) {
           this._die("crushed by a cube");

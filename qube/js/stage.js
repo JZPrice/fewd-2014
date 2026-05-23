@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=23";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=23";
+import { Cube } from "./cube.js?v=24";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=24";
 
 export class Stage {
   constructor(stageDef) {
@@ -13,6 +13,7 @@ export class Stage {
     this.rollMs = stageDef.rollMs ?? Math.min(stageDef.tickMs - 200, 1000);
     this.nextTickAt = 0;
     this.pendingRowDrop = 0;
+    this.forbiddenFellOff = 0;
   }
 
   startWave(now) {
@@ -22,6 +23,7 @@ export class Stage {
     this.forbiddenDestroyed = false;
     this.floorLost = false;
     this.pendingRowDrop = 0;
+    this.forbiddenFellOff = 0;
     const rows = layout.length;
     // First entry of layout = furthest back (last to arrive).
     // Last entry of layout = closest to player (first to arrive).
@@ -54,7 +56,8 @@ export class Stage {
 
   cubeAt(x, z) {
     for (const c of this.cubes) {
-      if (!c.dead && c.gx === x && c.gz === z) return c;
+      if (c.dead || c.fallingOff) continue;
+      if (c.gx === x && c.gz === z) return c;
     }
     return null;
   }
@@ -83,7 +86,7 @@ export class Stage {
     let front = this.frontEdge(grid);
 
     for (const cube of this.cubes) {
-      if (cube.dead) continue;
+      if (cube.dead || cube.fallingOff) continue;
       const fromZ = cube.gz;
       const toZ = cube.gz - 1;
 
@@ -96,9 +99,12 @@ export class Stage {
 
       // Past the front edge of the platform - cube has fallen off.
       if (toZ < front) {
-        cube.dead = true;
-        if (cube.isForbidden() || cube.isAdvantage()) {
-          // Ignored - just gone.
+        if (cube.isForbidden()) {
+          // Tallied; at wave end each falling forbidden restores one missing
+          // front row.
+          this.forbiddenFellOff++;
+        } else if (cube.isAdvantage()) {
+          // No special effect.
         } else {
           // Normal: take the current front row with it. Player on that row
           // goes too; player further back is safe.
@@ -110,6 +116,8 @@ export class Stage {
             front = this.frontEdge(grid); // recompute for subsequent cubes this tick
           }
         }
+        // Visual: cube tumbles forward off the edge for ~700ms, then is reaped.
+        cube.startFalling(now, 700);
         continue;
       }
 
