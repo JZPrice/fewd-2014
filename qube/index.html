@@ -11,7 +11,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <link rel="stylesheet" href="css/style.css?v=25" />
+  <link rel="stylesheet" href="css/style.css?v=26" />
   <script type="importmap">
     {
       "imports": {
@@ -24,7 +24,7 @@
 <body>
   <canvas id="stage"></canvas>
 
-  <div id="version-stamp">v25 · 2026-05-23 21:50 UTC</div>
+  <div id="version-stamp">v26 · 2026-05-23 22:04 UTC</div>
 
   <div id="hud">
     <div class="hud-row">
@@ -59,6 +59,16 @@
   <div id="title" class="overlay">
     <h1>QUBE</h1>
     <p class="tagline">a rolling-block puzzle</p>
+
+    <div id="char-select" class="char-select">
+      <span class="char-label">CHARACTER</span>
+      <div class="char-row">
+        <button id="char-prev" class="char-arrow" aria-label="previous character">◀</button>
+        <span id="char-name">Robot</span>
+        <button id="char-next" class="char-arrow" aria-label="next character">▶</button>
+      </div>
+    </div>
+
     <div class="controls kbd-only">
       <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</p>
       <p><kbd>J</kbd> mark &nbsp; <kbd>K</kbd> fire &nbsp; <kbd>L</kbd> detonate</p>
@@ -82,6 +92,6 @@
     <p class="prompt touch-only">tap to restart</p>
   </div>
 
-  <script type="module" src="js/main.js?v=25"></script>
+  <script type="module" src="js/main.js?v=26"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=25";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=26";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -180,8 +180,8 @@ export class Renderer {
     this.playerMesh.position.y = 0;
     this.scene.add(this.playerMesh);
 
-    // Temporary placeholder boxes while the GLB loads. Hidden when the
-    // rigged model is ready.
+    // Temporary placeholder boxes while the GLB loads (and visible while
+    // the user is cycling between characters in the selector).
     this._placeholder = new THREE.Group();
     const matBody = new THREE.MeshLambertMaterial({ color: COLORS.player });
     const matLeg  = new THREE.MeshLambertMaterial({ color: 0xc28a2a });
@@ -200,50 +200,94 @@ export class Renderer {
     // Heading (smoothed) and animation state.
     this.playerHeading = 0;
     this._mixer = null;
-    this._anims = {};
-    this._currentAnim = null;
+    this._anims = {};         // canonical name -> THREE.AnimationAction
+    this._currentAnim = null; // canonical name ("idle" / "walk" / "run" / "death")
+    this._modelReady = false;
+    this._loadedModel = null;
+    this._currentCharDef = null;
+  }
+
+  // Load (or swap) the active character. charDef from characters.js:
+  //   { id, file, clips: { idle, walk, run, death } }
+  setCharacter(charDef) {
+    if (!charDef || this._currentCharDef?.id === charDef.id) return;
+    this._currentCharDef = charDef;
     this._modelReady = false;
 
-    // Load the rigged GLB asynchronously.
-    new GLTFLoader().load("assets/character.glb", (gltf) => {
+    // Tear down the previous model.
+    if (this._loadedModel) {
+      this.playerMesh.remove(this._loadedModel);
+      this._loadedModel = null;
+    }
+    if (this._mixer) {
+      this._mixer.stopAllAction();
+      this._mixer = null;
+    }
+    this._anims = {};
+    this._currentAnim = null;
+    this._placeholder.visible = true;
+
+    new GLTFLoader().load(charDef.file, (gltf) => {
+      // Only commit if this is still the active request (selector may have
+      // moved on while we were loading).
+      if (this._currentCharDef?.id !== charDef.id) return;
+
       const model = gltf.scene;
-      // Scale: tune so the model is ~1 tile tall.
-      model.scale.setScalar(0.18);
       model.traverse((o) => {
         if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
       });
-      this.playerMesh.add(model);
-      this._placeholder.visible = false;
-      this.playerModel = model;
 
-      // Animation mixer + named clips.
+      // Auto-scale: measure model height and scale so the character is
+      // ~0.95 tiles tall regardless of source units (cm vs m vs etc.).
+      const box = new THREE.Box3().setFromObject(model);
+      const h = box.max.y - box.min.y;
+      const scale = h > 0 ? 0.95 / h : 1;
+      model.scale.setScalar(scale);
+      // Put the feet at y=0 (origin may be at the model's pelvis).
+      const minYScaled = box.min.y * scale;
+      model.position.y = -minYScaled;
+
+      this.playerMesh.add(model);
+      this._loadedModel = model;
+      this._placeholder.visible = false;
+
+      // Animation mixer + canonical clip mapping.
       this._mixer = new THREE.AnimationMixer(model);
-      for (const clip of gltf.animations) {
+      const clipMap = charDef.clips || {};
+      const clipsByName = {};
+      for (const clip of gltf.animations) clipsByName[clip.name] = clip;
+      for (const canonical of ["idle", "walk", "run", "death"]) {
+        const targetName = clipMap[canonical];
+        if (!targetName) continue;
+        const clip = clipsByName[targetName];
+        if (!clip) continue;
         const action = this._mixer.clipAction(clip);
         action.enabled = true;
         action.setEffectiveWeight(0);
         action.play();
-        this._anims[clip.name] = action;
+        this._anims[canonical] = action;
       }
-      this._setAnim("Idle", 0);
+      this._setAnim("idle", 0);
       this._modelReady = true;
     }, undefined, (err) => {
-      console.error("character.glb failed to load:", err);
+      console.error(`character ${charDef.id} failed to load:`, err);
     });
   }
 
-  // Crossfade to a named animation. fade=0 cuts immediately; otherwise
-  // fades over the given seconds.
+  // Crossfade to a canonical animation name ("idle"/"walk"/"run"/"death").
+  // Falls back gracefully if a clip is missing.
   _setAnim(name, fade = 0.25) {
-    if (!this._anims[name]) return;
-    if (this._currentAnim === name) return;
-    const next = this._anims[name];
+    let action = this._anims[name];
+    if (!action) action = this._anims["idle"]; // graceful fallback
+    if (!action) return;
+    const resolved = this._anims[name] ? name : "idle";
+    if (this._currentAnim === resolved) return;
     const prev = this._currentAnim ? this._anims[this._currentAnim] : null;
-    next.reset();
-    next.setEffectiveWeight(1);
-    next.fadeIn(fade);
+    action.reset();
+    action.setEffectiveWeight(1);
+    action.fadeIn(fade);
     if (prev) prev.fadeOut(fade);
-    this._currentAnim = name;
+    this._currentAnim = resolved;
   }
 
   _buildMark() {
@@ -442,16 +486,16 @@ export class Renderer {
     }
     this.playerMesh.rotation.y = this.playerHeading;
 
-    // Animation selection.
+    // Animation selection (canonical names; missing clips fall back to idle).
     if (this._modelReady) {
       if (player.falling) {
-        this._setAnim("Death");
+        this._setAnim("death");
       } else if (speed < 0.1) {
-        this._setAnim("Idle");
+        this._setAnim("idle");
       } else if (speed < player.speed * 0.7) {
-        this._setAnim("Walking");
+        this._setAnim("walk");
       } else {
-        this._setAnim("Running");
+        this._setAnim("run");
       }
     }
   }

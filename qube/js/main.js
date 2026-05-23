@@ -1,10 +1,11 @@
-import { Renderer } from "./renderer.js?v=25";
-import { Input } from "./input.js?v=25";
-import { AudioEngine } from "./audio.js?v=25";
-import { HUD } from "./hud.js?v=25";
-import { Game } from "./game.js?v=25";
-import { Debugger } from "./debug.js?v=25";
-import { Haptics } from "./haptics.js?v=25";
+import { Renderer } from "./renderer.js?v=26";
+import { Input } from "./input.js?v=26";
+import { AudioEngine } from "./audio.js?v=26";
+import { HUD } from "./hud.js?v=26";
+import { Game } from "./game.js?v=26";
+import { Debugger } from "./debug.js?v=26";
+import { Haptics } from "./haptics.js?v=26";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=26";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -17,6 +18,36 @@ input.attach();
 
 const game = new Game({ renderer, input, audio, hud, haptics });
 const dbg = new Debugger(game);
+
+// --- Character selector ----------------------------------------------------
+
+let charIdx = Math.max(0, CHARACTERS.findIndex(c => c.id === savedCharacterId()));
+const charNameEl = document.getElementById("char-name");
+function applyCharacter() {
+  const c = CHARACTERS[charIdx];
+  charNameEl.textContent = c.name;
+  renderer.setCharacter(c);
+  saveCharacterId(c.id);
+}
+applyCharacter();
+
+function cycleChar(dir) {
+  charIdx = (charIdx + dir + CHARACTERS.length) % CHARACTERS.length;
+  applyCharacter();
+}
+
+// Block taps on the selector from triggering the title's tap-to-start.
+function bindCharBtn(id, dir) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    cycleChar(dir);
+  });
+}
+bindCharBtn("char-prev", -1);
+bindCharBtn("char-next", +1);
 
 // First user interaction unlocks the AudioContext (browsers require gesture).
 const unlockAudio = () => { audio.init(); audio.resume(); };
@@ -169,7 +200,7 @@ function bindOverlayTap(id) {
   if (!el) return;
   el.addEventListener("pointerdown", (e) => {
     // Ignore taps that originate on a child button (shouldn't happen here, but safe).
-    if (e.target.closest(".tbtn")) return;
+    if (e.target.closest(".tbtn, .char-arrow, .char-select")) return;
     input.pushAction("start");
   });
 }
