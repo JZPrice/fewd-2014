@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=16";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=17";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -71,21 +71,36 @@ export class Renderer {
   }
 
   _buildPlatformBody() {
-    // A deep dark slab below the floor tiles. Holes in the floor reveal
-    // its dark top surface, and the body extends downward far past the
-    // fog far-plane so the platform reads as bottomless.
-    const w = GRID_W * TILE * 1.04;
-    const d = GRID_D * TILE * 1.04;
-    const h = 80;
-    const geom = new THREE.BoxGeometry(w, h, d);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x0e1120 });
-    const mesh = new THREE.Mesh(geom, mat);
-    // Top of the slab sits just below the tile undersides, so dropped tiles
-    // visually sink into it rather than vanishing into thin air.
-    mesh.position.set(0, -h / 2 - 0.15, this._lookZ);
-    mesh.receiveShadow = true;
-    this.scene.add(mesh);
-    this.platformBody = mesh;
+    // The underbody is a stack of progressively darker slabs with thin gaps.
+    // The visible seams between slabs read as depth markers, and the lower
+    // slabs fade into fog so the column reads as bottomless. Each slab is
+    // slightly inset from the one above so the silhouette tapers very
+    // gently inward as it descends.
+    this.platformBody = new THREE.Group();
+    const baseW = GRID_W * TILE * 1.04;
+    const baseD = GRID_D * TILE * 1.04;
+    const slabs = 24;
+    const slabH = 2.4;
+    const gap = 0.10;
+    for (let i = 0; i < slabs; i++) {
+      const yTop = -0.25 - i * (slabH + gap);
+      const yMid = yTop - slabH / 2;
+      const t = i / (slabs - 1);
+      // Lightness ramps from a visible ~22% near the top down to ~4% deep
+      // below, so each subsequent slab is darker than the last.
+      const light = Math.max(3, Math.round(22 - t * 19));
+      const color = new THREE.Color(`hsl(228, 18%, ${light}%)`);
+      // Gentle inward taper - barely perceptible but adds depth cue.
+      const inset = i * 0.02;
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(baseW - inset, slabH, baseD - inset),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      mesh.position.set(0, yMid, this._lookZ);
+      mesh.receiveShadow = true;
+      this.platformBody.add(mesh);
+    }
+    this.scene.add(this.platformBody);
   }
 
   _buildFloor() {

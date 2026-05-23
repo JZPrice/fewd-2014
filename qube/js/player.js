@@ -1,4 +1,4 @@
-import { GRID_W, MOVE_COOLDOWN_MS, PLAYER_SLIDE_MS } from "./config.js?v=16";
+import { GRID_W, MOVE_COOLDOWN_MS, PLAYER_SLIDE_MS } from "./config.js?v=17";
 
 export class Player {
   constructor() {
