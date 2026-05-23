@@ -213,14 +213,19 @@ body.touch #touch-controls {
   border: 1px solid rgba(200, 220, 255, 0.6);
   pointer-events: none;
   transform: translate(0, 0);
-  transition: background 0.15s ease, transform 0.12s ease;
+  /* No transform transition during drag - the stick must track the finger
+     instantly. Snap-back on release applies a brief transition via .snap. */
+  transition: background 0.12s ease;
   will-change: transform;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
+.joy-stick.snap {
+  transition: background 0.12s ease, transform 0.18s ease-out;
+}
+
 .joy-base.active .joy-stick {
   background: rgba(160, 200, 255, 0.78);
-  transition: background 0.1s ease;
 }
 
 /* Actions: three large buttons anchored bottom-right */

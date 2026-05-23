@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=14";
-import { Player } from "./player.js?v=14";
-import { Stage } from "./stage.js?v=14";
-import { STAGES } from "./stages.js?v=14";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=14";
+import { Grid } from "./grid.js?v=15";
+import { Player } from "./player.js?v=15";
+import { Stage } from "./stage.js?v=15";
+import { STAGES } from "./stages.js?v=15";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=15";
 
 const STATE = {
   TITLE: "title",
@@ -298,9 +298,15 @@ export class Game {
 
       if (events.dangerNear) { this.audio.danger(); this.haptics.danger(); }
 
+      if (events.rowsDropped > 0) {
+        this.audio.boom();
+        this.haptics.rowDrop();
+        this.hud.flash(`-${events.rowsDropped} ROW${events.rowsDropped > 1 ? "S" : ""}`, 900);
+      }
+
       this.hud.setCubes(this.stage.remainingCubes());
 
-      if (events.fellOff) { this._die("a cube reached the edge"); return; }
+      if (events.takenWithRow) { this._die("the row dropped with you"); return; }
       if (!this.grid.hasTile(this.player.gx, this.player.gz)) {
         this._die("fell through the floor"); return;
       }

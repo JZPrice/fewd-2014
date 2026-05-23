@@ -1,10 +1,10 @@
-import { Renderer } from "./renderer.js?v=14";
-import { Input } from "./input.js?v=14";
-import { AudioEngine } from "./audio.js?v=14";
-import { HUD } from "./hud.js?v=14";
-import { Game } from "./game.js?v=14";
-import { Debugger } from "./debug.js?v=14";
-import { Haptics } from "./haptics.js?v=14";
+import { Renderer } from "./renderer.js?v=15";
+import { Input } from "./input.js?v=15";
+import { AudioEngine } from "./audio.js?v=15";
+import { HUD } from "./hud.js?v=15";
+import { Game } from "./game.js?v=15";
+import { Debugger } from "./debug.js?v=15";
+import { Haptics } from "./haptics.js?v=15";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -99,7 +99,7 @@ function setupJoystick(rootSelector) {
   // 4-way snap based on dominant axis, with a centered dead zone.
   function dirsFromOffset(dx, dy, r) {
     const mag = Math.hypot(dx, dy);
-    const dz = r * 0.28;
+    const dz = r * 0.18;
     if (mag < dz) {
       return { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
     }
@@ -117,6 +117,7 @@ function setupJoystick(rootSelector) {
     stick.style.transform = `translate(${ndx}px, ${ndy}px)`;
   }
 
+  let snapTimer = 0;
   function onDown(e) {
     if (activePointerId !== null) return;
     e.preventDefault();
@@ -127,6 +128,8 @@ function setupJoystick(rootSelector) {
     cy = rect.top + rect.height / 2;
     radius = rect.width / 2 - 14;
     base.classList.add("active");
+    stick.classList.remove("snap");
+    clearTimeout(snapTimer);
     onMove(e);
   }
 
@@ -141,16 +144,18 @@ function setupJoystick(rootSelector) {
   function onUp(e) {
     if (e.pointerId !== activePointerId) return;
     activePointerId = null;
+    stick.classList.add("snap");
     moveStick(0, 0);
     updateHeld({ arrowleft: false, arrowright: false, arrowup: false, arrowdown: false });
     base.classList.remove("active");
+    clearTimeout(snapTimer);
+    snapTimer = setTimeout(() => stick.classList.remove("snap"), 220);
   }
 
   base.addEventListener("pointerdown", onDown);
   base.addEventListener("pointermove", onMove);
   base.addEventListener("pointerup", onUp);
   base.addEventListener("pointercancel", onUp);
-  base.addEventListener("pointerleave", onUp);
   base.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 

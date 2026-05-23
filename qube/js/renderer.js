@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=14";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=15";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -28,6 +28,7 @@ export class Renderer {
     this.camera.lookAt(0, 0.4, this._lookZ);
 
     this._buildLights();
+    this._buildPlatformBody();
     this._buildFloor();
     this._buildPlayer();
     this._buildMark();
@@ -67,6 +68,24 @@ export class Renderer {
     dir.shadow.camera.near = 0.5;
     dir.shadow.camera.far = 36;
     this.scene.add(dir);
+  }
+
+  _buildPlatformBody() {
+    // A deep dark slab below the floor tiles. Holes in the floor reveal
+    // its dark top surface, and the body extends downward far past the
+    // fog far-plane so the platform reads as bottomless.
+    const w = GRID_W * TILE * 1.04;
+    const d = GRID_D * TILE * 1.04;
+    const h = 80;
+    const geom = new THREE.BoxGeometry(w, h, d);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x0e1120 });
+    const mesh = new THREE.Mesh(geom, mat);
+    // Top of the slab sits just below the tile undersides, so dropped tiles
+    // visually sink into it rather than vanishing into thin air.
+    mesh.position.set(0, -h / 2 - 0.15, this._lookZ);
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.platformBody = mesh;
   }
 
   _buildFloor() {

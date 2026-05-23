@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=14";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=14";
+import { Cube } from "./cube.js?v=15";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=15";
 
 export class Stage {
   constructor(stageDef) {
@@ -59,15 +59,28 @@ export class Stage {
     return null;
   }
 
+  // Lowest gz with any remaining tile - the platform's current front edge.
+  frontEdge(grid) {
+    for (let z = 0; z < GRID_D; z++) {
+      for (let x = 0; x < GRID_W; x++) {
+        if (grid.tiles[x][z]) return z;
+      }
+    }
+    return GRID_D;
+  }
+
   // Resolve a tick: advance every cube one row toward the player.
   // Triggers (K) are handled in Game._triggerMark in real time.
   tick(now, player, grid) {
     const events = {
       crushed: false,
-      fellOff: false,
+      takenWithRow: false,
+      rowsDropped: 0,
       cubesFellInHole: 0,
       dangerNear: false,
     };
+
+    let front = this.frontEdge(grid);
 
     for (const cube of this.cubes) {
       if (cube.dead) continue;
@@ -81,23 +94,29 @@ export class Stage {
         continue;
       }
 
-      // Target tile is a hole: cube falls in harmlessly.
-      if (toZ >= 0 && !grid.hasTile(cube.gx, toZ)) {
+      // Past the front edge of the platform - cube has fallen off.
+      if (toZ < front) {
         cube.dead = true;
-        events.cubesFellInHole++;
+        if (cube.isForbidden() || cube.isAdvantage()) {
+          // Ignored - just gone.
+        } else {
+          // Normal: take the current front row with it. Player on that row
+          // goes too; player further back is safe.
+          if (front < GRID_D) {
+            for (let x = 0; x < GRID_W; x++) grid.tiles[x][front] = false;
+            events.rowsDropped++;
+            this.floorLost = true;
+            if (player.gz === front) events.takenWithRow = true;
+            front = this.frontEdge(grid); // recompute for subsequent cubes this tick
+          }
+        }
         continue;
       }
 
-      // Past front row.
-      if (toZ < 0) {
-        if (cube.isForbidden()) {
-          // Forbidden cubes are meant to be ignored - they roll off the
-          // front harmlessly, no death, just gone.
-          cube.dead = true;
-        } else {
-          // Normal / advantage cubes falling off past the player = death.
-          events.fellOff = true;
-        }
+      // Target tile is a hole within the platform: cube falls in harmlessly.
+      if (!grid.hasTile(cube.gx, toZ)) {
+        cube.dead = true;
+        events.cubesFellInHole++;
         continue;
       }
 
@@ -106,7 +125,7 @@ export class Stage {
       cube.gz = toZ;
       cube.startRoll(fromZ, toZ, now, this.rollMs);
 
-      if (toZ <= 1) events.dangerNear = true;
+      if (toZ <= front + 1) events.dangerNear = true;
     }
 
     return events;
