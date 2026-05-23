@@ -2,8 +2,10 @@ export const GRID_W = 4;
 export const GRID_D = 16;
 export const TILE = 1;
 
+// Slide and cooldown match so each step blends into the next - no pause
+// between tile transitions while a direction is held.
 export const MOVE_COOLDOWN_MS = 220;
-export const PLAYER_SLIDE_MS = 180;
+export const PLAYER_SLIDE_MS = 220;
 
 export const CUBE_TYPE = {
   NORMAL: "N",

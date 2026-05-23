@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=17";
-import { Player } from "./player.js?v=17";
-import { Stage } from "./stage.js?v=17";
-import { STAGES } from "./stages.js?v=17";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=17";
+import { Grid } from "./grid.js?v=18";
+import { Player } from "./player.js?v=18";
+import { Stage } from "./stage.js?v=18";
+import { STAGES } from "./stages.js?v=18";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=18";
 
 const STATE = {
   TITLE: "title",

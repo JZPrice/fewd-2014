@@ -1,4 +1,4 @@
-import { GRID_W, MOVE_COOLDOWN_MS, PLAYER_SLIDE_MS } from "./config.js?v=17";
+import { GRID_W, MOVE_COOLDOWN_MS, PLAYER_SLIDE_MS } from "./config.js?v=18";
 
 export class Player {
   constructor() {
@@ -32,8 +32,14 @@ export class Player {
     const nx = this.gx + dx;
     const nz = this.gz + dz;
     if (!grid.inBounds(nx, nz)) return false;
-    this.prevGx = this.gx;
-    this.prevGz = this.gz;
+
+    // Slide source is the player's CURRENT visual position (which may be
+    // mid-step if the previous slide hasn't finished). Storing it as a
+    // float means the next slide starts exactly where the eye left off,
+    // not from the snapped target tile.
+    const u = this.slideProgress(now);
+    this.prevGx = this.prevGx + (this.gx - this.prevGx) * u;
+    this.prevGz = this.prevGz + (this.gz - this.prevGz) * u;
     this.gx = nx;
     this.gz = nz;
     this.slideT0 = now;
