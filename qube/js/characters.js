@@ -6,6 +6,15 @@
 //
 // `yOffset` is optional; use it if a model's origin isn't at its feet.
 
+const KAYKIT = {
+  // All four KayKit Adventurers share the same skeleton + 76 animations,
+  // the same intrinsic height (~3.36 units), and the same hips-at-origin
+  // pivot - so they share scale + yOffset + clip mapping.
+  scale: 0.28,
+  yOffset: 0.31,
+  clips: { idle: "Idle", walk: "Walking_A", run: "Running_A", death: "Death_A" },
+};
+
 export const CHARACTERS = [
   {
     id: "robot",
@@ -15,6 +24,10 @@ export const CHARACTERS = [
     yOffset: 0,
     clips: { idle: "Idle", walk: "Walking", run: "Running", death: "Death" },
   },
+  { id: "knight",    name: "Knight",    file: "assets/characters/knight.glb",    ...KAYKIT },
+  { id: "mage",      name: "Mage",      file: "assets/characters/mage.glb",      ...KAYKIT },
+  { id: "rogue",     name: "Rogue",     file: "assets/characters/rogue.glb",     ...KAYKIT },
+  { id: "barbarian", name: "Barbarian", file: "assets/characters/barbarian.glb", ...KAYKIT },
 ];
 
 export function characterById(id) {
