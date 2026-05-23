@@ -268,9 +268,25 @@ body.overlay-shown #touch-controls { opacity: 0.25; pointer-events: none; }
 
 /* --- debugger ---------------------------------------------------------- */
 
+#version-stamp {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 45;
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  color: rgba(180, 200, 255, 0.55);
+  background: rgba(10, 14, 24, 0.55);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(180, 200, 255, 0.15);
+  pointer-events: none;
+  user-select: none;
+}
+
 #dbg-toggle {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
+  top: max(36px, calc(env(safe-area-inset-top) + 32px));
   right: max(12px, env(safe-area-inset-right));
   z-index: 40;
   font: 700 11px/1 inherit;
@@ -290,7 +306,7 @@ body.overlay-shown #touch-controls { opacity: 0.25; pointer-events: none; }
 
 #dbg-panel {
   position: fixed;
-  top: max(48px, calc(env(safe-area-inset-top) + 40px));
+  top: max(72px, calc(env(safe-area-inset-top) + 68px));
   right: max(12px, env(safe-area-inset-right));
   z-index: 40;
   width: 240px;
