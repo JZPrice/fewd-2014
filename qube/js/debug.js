@@ -1,5 +1,7 @@
-// Live debug panel: toggle with the DBG button or the backtick key.
-// Lets you read game state and tune tickMs / rollMs without reloading.
+// Live debug panel. Toggle with the DBG button or backtick.
+// Organized into collapsible sections; only Status is expanded by default.
+// The panel is also scrollable, so even a fully-expanded panel fits on
+// short screens.
 
 export class Debugger {
   constructor(game) {
@@ -22,78 +24,114 @@ export class Debugger {
       <div class="dbg-head">
         <span>DEBUG</span><button data-act="close" class="dbg-x">×</button>
       </div>
-      <div class="dbg-row">
-        <button data-act="hap" id="dbg-hap">haptics: —</button>
-        <button data-act="haptest">test</button>
-      </div>
-      <div class="dbg-stat"><span>vibrate API</span><b id="dbg-hap-api">—</b></div>
-      <div class="dbg-stat"><span>last call</span><b id="dbg-hap-last">—</b></div>
-      <div class="dbg-stat"><span>state</span><b id="dbg-state">—</b></div>
-      <div class="dbg-stat"><span>stage / wave</span><b id="dbg-sw">—</b></div>
-      <div class="dbg-stat"><span>cubes left</span><b id="dbg-cubes">—</b></div>
-      <div class="dbg-stat"><span>bombs</span><b id="dbg-bombs">—</b></div>
-      <div class="dbg-stat"><span>row drop pending</span><b id="dbg-drop">—</b></div>
-      <div class="dbg-stat"><span>player</span><b id="dbg-player">—</b></div>
-      <div class="dbg-stat"><span>mark</span><b id="dbg-mark">—</b></div>
-      <div class="dbg-stat"><span>next tick</span><b id="dbg-next">—</b></div>
-      <div class="dbg-sep"></div>
-      <div class="dbg-stat">
-        <span>tickMs</span>
-        <span class="dbg-tune">
-          <button data-act="tick--">−100</button>
-          <b id="dbg-tickms">—</b>
-          <button data-act="tick++">+100</button>
-        </span>
-      </div>
-      <div class="dbg-stat">
-        <span>rollMs</span>
-        <span class="dbg-tune">
-          <button data-act="roll--">−100</button>
-          <b id="dbg-rollms">—</b>
-          <button data-act="roll++">+100</button>
-        </span>
-      </div>
-      <div class="dbg-stat">
-        <span>extraPauseMs</span>
-        <span class="dbg-tune">
-          <button data-act="ep--">−100</button>
-          <b id="dbg-epms">—</b>
-          <button data-act="ep++">+100</button>
-        </span>
-      </div>
-      <div class="dbg-stat">
-        <span>man speed (ms/move)</span>
-        <span class="dbg-tune">
-          <button data-act="spd--">−20</button>
-          <b id="dbg-spd">—</b>
-          <button data-act="spd++">+20</button>
-        </span>
-      </div>
-      <div class="dbg-stat">
-        <span>cam halflife (ms)</span>
-        <span class="dbg-tune">
-          <button data-act="cam--">−50</button>
-          <b id="dbg-cam">—</b>
-          <button data-act="cam++">+50</button>
-        </span>
-      </div>
-      <div class="dbg-stat"><span>last shake</span><b id="dbg-shake">—</b></div>
-      <div class="dbg-stat">
-        <span>pause / roll ratio</span>
-        <b id="dbg-ratio">—</b>
-      </div>
-      <div class="dbg-sep"></div>
-      <div class="dbg-row">
-        <button data-act="pause" id="dbg-pause">pause</button>
-        <button data-act="step">step</button>
-      </div>
-      <div class="dbg-row">
-        <button data-act="restart">restart</button>
-        <button data-act="skipwave">skip wave</button>
-      </div>
-      <div class="dbg-row">
-        <button data-act="shaketest">shake test</button>
-        <button data-act="copy" id="dbg-copy">copy state</button>
+      <div id="dbg-scroll">
+
+        <div class="dbg-section dbg-expanded" data-sec="status">
+          <button class="dbg-section-head">Status</button>
+          <div class="dbg-section-body">
+            <div class="dbg-stat"><span>state</span><b id="dbg-state">—</b></div>
+            <div class="dbg-stat"><span>stage / wave</span><b id="dbg-sw">—</b></div>
+            <div class="dbg-stat"><span>cubes left</span><b id="dbg-cubes">—</b></div>
+            <div class="dbg-stat"><span>bombs</span><b id="dbg-bombs">—</b></div>
+            <div class="dbg-stat"><span>row drop pending</span><b id="dbg-drop">—</b></div>
+            <div class="dbg-stat"><span>player</span><b id="dbg-player">—</b></div>
+            <div class="dbg-stat"><span>mark</span><b id="dbg-mark">—</b></div>
+            <div class="dbg-stat"><span>next tick</span><b id="dbg-next">—</b></div>
+          </div>
+        </div>
+
+        <div class="dbg-section" data-sec="pacing">
+          <button class="dbg-section-head">Pacing</button>
+          <div class="dbg-section-body">
+            <div class="dbg-stat">
+              <span>tickMs</span>
+              <span class="dbg-tune">
+                <button data-act="tick--">−100</button>
+                <b id="dbg-tickms">—</b>
+                <button data-act="tick++">+100</button>
+              </span>
+            </div>
+            <div class="dbg-stat">
+              <span>rollMs</span>
+              <span class="dbg-tune">
+                <button data-act="roll--">−100</button>
+                <b id="dbg-rollms">—</b>
+                <button data-act="roll++">+100</button>
+              </span>
+            </div>
+            <div class="dbg-stat">
+              <span>extraPauseMs</span>
+              <span class="dbg-tune">
+                <button data-act="ep--">−100</button>
+                <b id="dbg-epms">—</b>
+                <button data-act="ep++">+100</button>
+              </span>
+            </div>
+            <div class="dbg-stat"><span>pause / roll</span><b id="dbg-ratio">—</b></div>
+          </div>
+        </div>
+
+        <div class="dbg-section" data-sec="player">
+          <button class="dbg-section-head">Player</button>
+          <div class="dbg-section-body">
+            <div class="dbg-stat">
+              <span>speed (ms/tile)</span>
+              <span class="dbg-tune">
+                <button data-act="spd--">−20</button>
+                <b id="dbg-spd">—</b>
+                <button data-act="spd++">+20</button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dbg-section" data-sec="camera">
+          <button class="dbg-section-head">Camera</button>
+          <div class="dbg-section-body">
+            <div class="dbg-stat">
+              <span>halflife (ms)</span>
+              <span class="dbg-tune">
+                <button data-act="cam--">−50</button>
+                <b id="dbg-cam">—</b>
+                <button data-act="cam++">+50</button>
+              </span>
+            </div>
+            <div class="dbg-stat"><span>last shake</span><b id="dbg-shake">—</b></div>
+            <div class="dbg-row">
+              <button data-act="shaketest">shake test</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dbg-section" data-sec="haptics">
+          <button class="dbg-section-head">Haptics</button>
+          <div class="dbg-section-body">
+            <div class="dbg-row">
+              <button data-act="hap" id="dbg-hap">haptics: —</button>
+              <button data-act="haptest">test</button>
+            </div>
+            <div class="dbg-stat"><span>vibrate API</span><b id="dbg-hap-api">—</b></div>
+            <div class="dbg-stat"><span>last call</span><b id="dbg-hap-last">—</b></div>
+          </div>
+        </div>
+
+        <div class="dbg-section" data-sec="actions">
+          <button class="dbg-section-head">Actions</button>
+          <div class="dbg-section-body">
+            <div class="dbg-row">
+              <button data-act="pause" id="dbg-pause">pause</button>
+              <button data-act="step">step</button>
+            </div>
+            <div class="dbg-row">
+              <button data-act="restart">restart</button>
+              <button data-act="skipwave">skip wave</button>
+            </div>
+            <div class="dbg-row">
+              <button data-act="copy" id="dbg-copy">copy state</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     `;
     panel.style.display = "none";
@@ -104,6 +142,12 @@ export class Debugger {
   _wire() {
     this.toggle.addEventListener("click", () => this.setVisible(!this.visible));
     this.panel.addEventListener("click", (e) => {
+      // Section headers toggle expansion.
+      const head = e.target.closest(".dbg-section-head");
+      if (head) {
+        head.parentElement.classList.toggle("dbg-expanded");
+        return;
+      }
       const act = e.target?.dataset?.act;
       if (act) this._do(act);
     });
@@ -130,7 +174,6 @@ export class Debugger {
       case "roll--": s.rollMs = Math.max(100, s.rollMs - 100); break;
       case "ep++": s.extraPauseMs = (s.extraPauseMs ?? (s.tickMs - s.rollMs)) + 100; break;
       case "ep--": s.extraPauseMs = Math.max(0, (s.extraPauseMs ?? (s.tickMs - s.rollMs)) - 100); break;
-      // spd buttons read intuitively (- slower, + faster).
       case "spd--": g.player.speed = Math.max(0.5, g.player.speed - 0.5); break;
       case "spd++": g.player.speed = Math.min(20,  g.player.speed + 0.5); break;
       case "cam--": g.renderer.followHalflife = Math.max(50,   (g.renderer.followHalflife ?? 300) - 50); break;
@@ -145,7 +188,6 @@ export class Debugger {
         break;
       case "haptest":
         if (g.haptics) {
-          // Force-enable while testing so we can see the result regardless.
           const wasEnabled = g.haptics.enabled;
           if (g.haptics.supported) g.haptics.setEnabled(true);
           g.haptics.test();
@@ -225,7 +267,7 @@ export class Debugger {
         ? `amp ${ls.amp.toFixed(2)} / ${ls.durMs}ms (${((Date.now() - ls.at) / 1000).toFixed(1)}s ago)`
         : "—";
       const pause = Math.max(0, s.tickMs - s.rollMs);
-      $("dbg-ratio").textContent = `${(s.rollMs/1000).toFixed(2)}s roll + ${(pause/1000).toFixed(2)}s pause`;
+      $("dbg-ratio").textContent = `${(s.rollMs/1000).toFixed(2)}s + ${(pause/1000).toFixed(2)}s`;
       const next = Math.max(0, (s.nextTickAt - performance.now()) / 1000);
       $("dbg-next").textContent = `${next.toFixed(2)}s`;
     }
