@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=34";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=35";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -128,7 +128,7 @@ export class Renderer {
     // it to a single draw call.
     const LAYERS = 18;
     const COUNT = GRID_W * GRID_D * LAYERS;
-    const geom = new THREE.BoxGeometry(TILE * 0.96, TILE * 0.96, TILE * 0.96);
+    const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     const inst = new THREE.InstancedMesh(geom, mat, COUNT);
     inst.castShadow = false;
@@ -160,7 +160,7 @@ export class Renderer {
     this.floorMeshes = [];
     // Floor tiles are now full unit cubes matching the underbody blocks.
     // Center at y=-0.5, so the top face is at y=0 (where the player walks).
-    const geo = new THREE.BoxGeometry(TILE * 0.96, TILE * 0.96, TILE * 0.96);
+    const geo = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     const REST_Y = -TILE / 2;
     for (let x = 0; x < GRID_W; x++) {
