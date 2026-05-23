@@ -1,4 +1,4 @@
-import { GRID_W, MOVE_COOLDOWN_MS, PLAYER_SLIDE_MS } from "./config.js?v=13";
+import { GRID_W, MOVE_COOLDOWN_MS, PLAYER_SLIDE_MS } from "./config.js?v=14";
 
 export class Player {
   constructor() {
@@ -11,6 +11,7 @@ export class Player {
     this.lastMoveAt = 0;
     this.falling = false;
     this.fallT0 = 0;
+    this.moveCooldownMs = MOVE_COOLDOWN_MS;
   }
 
   reset() {
@@ -22,11 +23,12 @@ export class Player {
     this.advantage = 0;
     this.lastMoveAt = 0;
     this.falling = false;
+    // moveCooldownMs is intentionally kept so debug-tuned speed survives restarts
   }
 
   tryMove(dx, dz, now, grid) {
     if (this.falling) return false;
-    if (now - this.lastMoveAt < MOVE_COOLDOWN_MS) return false;
+    if (now - this.lastMoveAt < this.moveCooldownMs) return false;
     const nx = this.gx + dx;
     const nz = this.gz + dz;
     if (!grid.inBounds(nx, nz)) return false;

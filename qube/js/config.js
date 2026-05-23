@@ -2,8 +2,8 @@ export const GRID_W = 4;
 export const GRID_D = 16;
 export const TILE = 1;
 
-export const MOVE_COOLDOWN_MS = 130;
-export const PLAYER_SLIDE_MS = 110;
+export const MOVE_COOLDOWN_MS = 220;
+export const PLAYER_SLIDE_MS = 180;
 
 export const CUBE_TYPE = {
   NORMAL: "N",

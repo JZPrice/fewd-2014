@@ -62,6 +62,14 @@ export class Debugger {
         </span>
       </div>
       <div class="dbg-stat">
+        <span>man speed (ms/move)</span>
+        <span class="dbg-tune">
+          <button data-act="spd--">−20</button>
+          <b id="dbg-spd">—</b>
+          <button data-act="spd++">+20</button>
+        </span>
+      </div>
+      <div class="dbg-stat">
         <span>pause / roll ratio</span>
         <b id="dbg-ratio">—</b>
       </div>
@@ -73,6 +81,9 @@ export class Debugger {
       <div class="dbg-row">
         <button data-act="restart">restart</button>
         <button data-act="skipwave">skip wave</button>
+      </div>
+      <div class="dbg-row">
+        <button data-act="copy" id="dbg-copy">copy state</button>
       </div>
     `;
     panel.style.display = "none";
@@ -109,6 +120,9 @@ export class Debugger {
       case "roll--": s.rollMs = Math.max(100, s.rollMs - 100); break;
       case "ep++": s.extraPauseMs = (s.extraPauseMs ?? (s.tickMs - s.rollMs)) + 100; break;
       case "ep--": s.extraPauseMs = Math.max(0, (s.extraPauseMs ?? (s.tickMs - s.rollMs)) - 100); break;
+      case "spd++": g.player.moveCooldownMs = Math.min(1000, g.player.moveCooldownMs + 20); break;
+      case "spd--": g.player.moveCooldownMs = Math.max(40,   g.player.moveCooldownMs - 20); break;
+      case "copy":  this._copyState(); break;
       case "hap":
         if (g.haptics) {
           g.haptics.setEnabled(!g.haptics.enabled);
@@ -133,6 +147,46 @@ export class Debugger {
     }
   }
 
+  _copyState() {
+    const g = this.game;
+    const s = g.stage;
+    const hap = g.haptics;
+    const now = performance.now();
+    const next = s ? Math.max(0, (s.nextTickAt - now) / 1000) : null;
+    const lines = [
+      `qube state @ ${new Date().toISOString()}`,
+      `  url:    ${location.href}`,
+      `  ua:     ${navigator.userAgent}`,
+      `  vw:     ${window.innerWidth}x${window.innerHeight}`,
+      `  state:  ${g.paused ? g.state + " (PAUSED)" : g.state}`,
+      `  stage:  ${s?.def?.id ?? "—"}  wave: ${s ? s.waveIndex + 1 : "—"}`,
+      `  cubes:  ${s?.remainingCubes?.() ?? "—"}  bombs: ${g.grid.bombs.length}`,
+      `  next:   ${next?.toFixed?.(2) ?? "—"}s`,
+      `  tickMs: ${s?.tickMs ?? "—"}  rollMs: ${s?.rollMs ?? "—"}  extraPauseMs: ${s?.extraPauseMs ?? (s ? s.tickMs - s.rollMs : "—")}`,
+      `  speed:  ${g.player.moveCooldownMs}ms/move`,
+      `  pos:    (${g.player.gx}, ${g.player.gz})  mark: ${g.grid.mark ? `(${g.grid.mark.x}, ${g.grid.mark.z})` : "—"}`,
+      `  drop:   pendingRowDrop=${s?.pendingRowDrop ?? 0}  forbiddenDestroyed=${s?.forbiddenDestroyed ?? false}  floorLost=${s?.floorLost ?? false}`,
+      `  haptics: ${!hap ? "no engine" : !hap.supported ? "n/a" : hap.enabled ? "ON" : "off"}`,
+      `  last vibe: ${hap?.lastPattern ? (Array.isArray(hap.lastPattern) ? "["+hap.lastPattern.join(",")+"]" : hap.lastPattern+"ms") + " -> " + hap.lastResult : "—"}`,
+    ];
+    const text = lines.join("\n");
+    const flash = (msg) => {
+      const btn = document.getElementById("dbg-copy");
+      if (!btn) return;
+      const orig = btn.textContent;
+      btn.textContent = msg;
+      setTimeout(() => { btn.textContent = orig; }, 1200);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => flash("copied!"))
+        .catch(() => flash("copy failed - see console"));
+    } else {
+      flash("clipboard n/a");
+    }
+    console.log(text);
+  }
+
   update() {
     if (!this.visible) return;
     const g = this.game;
@@ -149,6 +203,7 @@ export class Debugger {
       $("dbg-rollms").textContent = `${s.rollMs}ms`;
       const ep = s.extraPauseMs ?? (s.tickMs - s.rollMs);
       $("dbg-epms").textContent = `${ep}ms`;
+      $("dbg-spd").textContent = `${g.player.moveCooldownMs}ms`;
       const pause = Math.max(0, s.tickMs - s.rollMs);
       $("dbg-ratio").textContent = `${(s.rollMs/1000).toFixed(2)}s roll + ${(pause/1000).toFixed(2)}s pause`;
       const next = Math.max(0, (s.nextTickAt - performance.now()) / 1000);
