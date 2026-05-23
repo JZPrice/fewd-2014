@@ -38,7 +38,6 @@ export class Input {
     if (this.held.has("d") || this.held.has("arrowright")) dx += 1;
     if (this.held.has("w") || this.held.has("arrowup"))    dz += 1;
     if (this.held.has("s") || this.held.has("arrowdown"))  dz -= 1;
-    if (dx !== 0 && dz !== 0) dz = 0;
     return { dx, dz };
   }
 

@@ -1,10 +1,10 @@
-import { Renderer } from "./renderer.js?v=18";
-import { Input } from "./input.js?v=18";
-import { AudioEngine } from "./audio.js?v=18";
-import { HUD } from "./hud.js?v=18";
-import { Game } from "./game.js?v=18";
-import { Debugger } from "./debug.js?v=18";
-import { Haptics } from "./haptics.js?v=18";
+import { Renderer } from "./renderer.js?v=19";
+import { Input } from "./input.js?v=19";
+import { AudioEngine } from "./audio.js?v=19";
+import { HUD } from "./hud.js?v=19";
+import { Game } from "./game.js?v=19";
+import { Debugger } from "./debug.js?v=19";
+import { Haptics } from "./haptics.js?v=19";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -96,17 +96,28 @@ function setupJoystick(rootSelector) {
     }
   }
 
-  // 4-way snap based on dominant axis, with a centered dead zone.
+  // 8-way snap. Each 45-degree sector maps to a cardinal or diagonal
+  // direction. Diagonals report TWO held keys so the game can resolve a
+  // true two-axis step.
   function dirsFromOffset(dx, dy, r) {
+    const result = { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
     const mag = Math.hypot(dx, dy);
-    const dz = r * 0.18;
-    if (mag < dz) {
-      return { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
+    if (mag < r * 0.18) return result;
+    let angle = Math.atan2(dy, dx);
+    if (angle < 0) angle += 2 * Math.PI;
+    const sector = Math.round(angle / (Math.PI / 4)) % 8;
+    // Screen-space: +dy = down on screen, -dy = up on screen.
+    switch (sector) {
+      case 0: result.arrowright = true; break;
+      case 1: result.arrowright = true; result.arrowdown = true; break;
+      case 2: result.arrowdown = true; break;
+      case 3: result.arrowleft = true;  result.arrowdown = true; break;
+      case 4: result.arrowleft = true; break;
+      case 5: result.arrowleft = true;  result.arrowup = true; break;
+      case 6: result.arrowup = true; break;
+      case 7: result.arrowright = true; result.arrowup = true; break;
     }
-    if (Math.abs(dx) > Math.abs(dy)) {
-      return { arrowleft: dx < 0, arrowright: dx > 0, arrowup: false, arrowdown: false };
-    }
-    return { arrowleft: false, arrowright: false, arrowup: dy < 0, arrowdown: dy > 0 };
+    return result;
   }
 
   function moveStick(dx, dy) {

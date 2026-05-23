@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=18";
-import { Player } from "./player.js?v=18";
-import { Stage } from "./stage.js?v=18";
-import { STAGES } from "./stages.js?v=18";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=18";
+import { Grid } from "./grid.js?v=19";
+import { Player } from "./player.js?v=19";
+import { Stage } from "./stage.js?v=19";
+import { STAGES } from "./stages.js?v=19";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=19";
 
 const STATE = {
   TITLE: "title",
@@ -276,11 +276,20 @@ export class Game {
     // Movement stays enabled while paused so the debugger user can reposition.
     const { dx, dz } = this.input.axis();
     if (dx !== 0 || dz !== 0) {
-      const nx = this.player.gx + dx;
-      const nz = this.player.gz + dz;
-      const blocked = this.stage?.cubeAt(nx, nz);
-      if (this.grid.inBounds(nx, nz) && this.grid.hasTile(nx, nz) && !blocked) {
-        this.player.tryMove(dx, dz, now, this.grid);
+      // Try the requested step (which may be diagonal). If that target is
+      // blocked or off-platform, fall back to the cardinal components so
+      // the player slides along walls / cube corners cleanly.
+      const tries = (dx !== 0 && dz !== 0)
+        ? [[dx, dz], [dx, 0], [0, dz]]
+        : [[dx, dz]];
+      for (const [ax, az] of tries) {
+        if (ax === 0 && az === 0) continue;
+        const nx = this.player.gx + ax;
+        const nz = this.player.gz + az;
+        if (!this.grid.inBounds(nx, nz)) continue;
+        if (!this.grid.hasTile(nx, nz)) continue;
+        if (this.stage?.cubeAt(nx, nz)) continue;
+        if (this.player.tryMove(ax, az, now, this.grid)) break;
       }
     }
 
