@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=24";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=25";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -174,46 +175,75 @@ export class Renderer {
   }
 
   _buildPlayer() {
+    // Outer group is what the rest of the renderer positions/rotates.
     this.playerMesh = new THREE.Group();
     this.playerMesh.position.y = 0;
-
-    const bodyMat = new THREE.MeshLambertMaterial({
-      color: COLORS.player,
-      emissive: COLORS.player,
-      emissiveIntensity: 0.18,
-    });
-    const legMat = new THREE.MeshLambertMaterial({
-      color: 0xc28a2a,
-      emissive: COLORS.player,
-      emissiveIntensity: 0.05,
-    });
-
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.42, 0.26), bodyMat);
-    torso.position.y = 0.62;
-    torso.castShadow = true;
-    this.playerMesh.add(torso);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.24), bodyMat);
-    head.position.y = 0.95;
-    head.castShadow = true;
-    this.playerMesh.add(head);
-
-    // Hip pivots so legs swing about the top.
-    const legGeom = new THREE.BoxGeometry(0.12, 0.38, 0.14);
-    const makeLeg = (x) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(x, 0.40, 0);
-      const m = new THREE.Mesh(legGeom, legMat);
-      m.position.y = -0.19;
-      m.castShadow = true;
-      pivot.add(m);
-      this.playerMesh.add(pivot);
-      return pivot;
-    };
-    this.playerLegL = makeLeg(-0.10);
-    this.playerLegR = makeLeg(0.10);
-
     this.scene.add(this.playerMesh);
+
+    // Temporary placeholder boxes while the GLB loads. Hidden when the
+    // rigged model is ready.
+    this._placeholder = new THREE.Group();
+    const matBody = new THREE.MeshLambertMaterial({ color: COLORS.player });
+    const matLeg  = new THREE.MeshLambertMaterial({ color: 0xc28a2a });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.42, 0.26), matBody);
+    torso.position.y = 0.62; torso.castShadow = true;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.24), matBody);
+    head.position.y = 0.95;  head.castShadow = true;
+    const legGeom = new THREE.BoxGeometry(0.12, 0.38, 0.14);
+    const legL = new THREE.Mesh(legGeom, matLeg);
+    legL.position.set(-0.10, 0.21, 0); legL.castShadow = true;
+    const legR = new THREE.Mesh(legGeom, matLeg);
+    legR.position.set( 0.10, 0.21, 0); legR.castShadow = true;
+    this._placeholder.add(torso, head, legL, legR);
+    this.playerMesh.add(this._placeholder);
+
+    // Heading (smoothed) and animation state.
+    this.playerHeading = 0;
+    this._mixer = null;
+    this._anims = {};
+    this._currentAnim = null;
+    this._modelReady = false;
+
+    // Load the rigged GLB asynchronously.
+    new GLTFLoader().load("assets/character.glb", (gltf) => {
+      const model = gltf.scene;
+      // Scale: tune so the model is ~1 tile tall.
+      model.scale.setScalar(0.18);
+      model.traverse((o) => {
+        if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+      });
+      this.playerMesh.add(model);
+      this._placeholder.visible = false;
+      this.playerModel = model;
+
+      // Animation mixer + named clips.
+      this._mixer = new THREE.AnimationMixer(model);
+      for (const clip of gltf.animations) {
+        const action = this._mixer.clipAction(clip);
+        action.enabled = true;
+        action.setEffectiveWeight(0);
+        action.play();
+        this._anims[clip.name] = action;
+      }
+      this._setAnim("Idle", 0);
+      this._modelReady = true;
+    }, undefined, (err) => {
+      console.error("character.glb failed to load:", err);
+    });
+  }
+
+  // Crossfade to a named animation. fade=0 cuts immediately; otherwise
+  // fades over the given seconds.
+  _setAnim(name, fade = 0.25) {
+    if (!this._anims[name]) return;
+    if (this._currentAnim === name) return;
+    const next = this._anims[name];
+    const prev = this._currentAnim ? this._anims[this._currentAnim] : null;
+    next.reset();
+    next.setEffectiveWeight(1);
+    next.fadeIn(fade);
+    if (prev) prev.fadeOut(fade);
+    this._currentAnim = name;
   }
 
   _buildMark() {
@@ -399,17 +429,29 @@ export class Renderer {
     }
     this.playerMesh.position.set(p.x, y, p.z);
 
-    // Walk cycle: swing the legs whenever the player is actually moving.
-    if (this.playerLegL && this.playerLegR && !player.falling) {
-      const moving = (player.vx !== 0 || player.vz !== 0);
-      if (moving) {
-        const phase = (now / 1000) * 9;
-        const swing = Math.sin(phase) * 0.55;
-        this.playerLegL.rotation.x = swing;
-        this.playerLegR.rotation.x = -swing;
+    // Heading: face direction of movement. player.vx maps to world +X;
+    // player.vz (grid) is inverted in world. Smooth toward target so the
+    // model doesn't snap on direction changes.
+    const speed = Math.hypot(player.vx, player.vz);
+    if (speed > 0.05) {
+      const targetAngle = Math.atan2(player.vx, -player.vz);
+      let delta = targetAngle - this.playerHeading;
+      // Take the short way around the circle.
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      this.playerHeading += delta * 0.25;
+    }
+    this.playerMesh.rotation.y = this.playerHeading;
+
+    // Animation selection.
+    if (this._modelReady) {
+      if (player.falling) {
+        this._setAnim("Death");
+      } else if (speed < 0.1) {
+        this._setAnim("Idle");
+      } else if (speed < player.speed * 0.7) {
+        this._setAnim("Walking");
       } else {
-        this.playerLegL.rotation.x *= 0.82;
-        this.playerLegR.rotation.x *= 0.82;
+        this._setAnim("Running");
       }
     }
   }
@@ -467,6 +509,7 @@ export class Renderer {
 
   step(dt) {
     this._animateFloorDrops(dt);
+    if (this._mixer) this._mixer.update(dt);
   }
 
   render() {
