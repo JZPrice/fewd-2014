@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=19";
-import { Player } from "./player.js?v=19";
-import { Stage } from "./stage.js?v=19";
-import { STAGES } from "./stages.js?v=19";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=19";
+import { Grid } from "./grid.js?v=20";
+import { Player } from "./player.js?v=20";
+import { Stage } from "./stage.js?v=20";
+import { STAGES } from "./stages.js?v=20";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=20";
 
 const STATE = {
   TITLE: "title",
@@ -131,8 +131,9 @@ export class Game {
 
   _placeMark() {
     if (this.state !== STATE.PLAYING) return;
-    if (!this.grid.hasTile(this.player.gx, this.player.gz)) return;
-    if (this.grid.setMark(this.player.gx, this.player.gz)) {
+    const tx = this.player.tx, tz = this.player.tz;
+    if (!this.grid.hasTile(tx, tz)) return;
+    if (this.grid.setMark(tx, tz)) {
       this.audio.mark();
       this.haptics.mark();
     }
@@ -273,25 +274,12 @@ export class Game {
   }
 
   _updatePlaying(now, dt) {
-    // Movement stays enabled while paused so the debugger user can reposition.
+    // Continuous-position movement. The Player class normalizes diagonals,
+    // splits the step per-axis for slide-along-wall behavior, and clamps to
+    // the current tile when the next tile is blocked.
     const { dx, dz } = this.input.axis();
-    if (dx !== 0 || dz !== 0) {
-      // Try the requested step (which may be diagonal). If that target is
-      // blocked or off-platform, fall back to the cardinal components so
-      // the player slides along walls / cube corners cleanly.
-      const tries = (dx !== 0 && dz !== 0)
-        ? [[dx, dz], [dx, 0], [0, dz]]
-        : [[dx, dz]];
-      for (const [ax, az] of tries) {
-        if (ax === 0 && az === 0) continue;
-        const nx = this.player.gx + ax;
-        const nz = this.player.gz + az;
-        if (!this.grid.inBounds(nx, nz)) continue;
-        if (!this.grid.hasTile(nx, nz)) continue;
-        if (this.stage?.cubeAt(nx, nz)) continue;
-        if (this.player.tryMove(ax, az, now, this.grid)) break;
-      }
-    }
+    this.player.setIntent(dx, dz);
+    this.player.update(dt, now, this.grid, this.stage);
 
     if (this.paused && !this.stepRequested) return;
 
@@ -316,7 +304,7 @@ export class Game {
       this.hud.setCubes(this.stage.remainingCubes());
 
       if (events.takenWithRow) { this._die("the row dropped with you"); return; }
-      if (!this.grid.hasTile(this.player.gx, this.player.gz)) {
+      if (!this.grid.hasTile(this.player.tx, this.player.tz)) {
         this._die("fell through the floor"); return;
       }
 
@@ -331,7 +319,7 @@ export class Game {
     // is the player's dodge window.
     for (const cube of this.stage.cubes) {
       if (cube.dead || !cube.roll) continue;
-      if (cube.gx === this.player.gx && cube.gz === this.player.gz) {
+      if (cube.gx === this.player.tx && cube.gz === this.player.tz) {
         if (cube.rollProgress(now) >= 0.5) {
           this._die("crushed by a cube");
           return;

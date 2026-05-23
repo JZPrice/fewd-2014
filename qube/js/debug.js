@@ -120,8 +120,9 @@ export class Debugger {
       case "roll--": s.rollMs = Math.max(100, s.rollMs - 100); break;
       case "ep++": s.extraPauseMs = (s.extraPauseMs ?? (s.tickMs - s.rollMs)) + 100; break;
       case "ep--": s.extraPauseMs = Math.max(0, (s.extraPauseMs ?? (s.tickMs - s.rollMs)) - 100); break;
-      case "spd++": g.player.moveCooldownMs = Math.min(1000, g.player.moveCooldownMs + 20); break;
-      case "spd--": g.player.moveCooldownMs = Math.max(40,   g.player.moveCooldownMs - 20); break;
+      // spd buttons read intuitively (- slower, + faster).
+      case "spd--": g.player.speed = Math.max(0.5, g.player.speed - 0.5); break;
+      case "spd++": g.player.speed = Math.min(20,  g.player.speed + 0.5); break;
       case "copy":  this._copyState(); break;
       case "hap":
         if (g.haptics) {
@@ -163,8 +164,8 @@ export class Debugger {
       `  cubes:  ${s?.remainingCubes?.() ?? "—"}  bombs: ${g.grid.bombs.length}`,
       `  next:   ${next?.toFixed?.(2) ?? "—"}s`,
       `  tickMs: ${s?.tickMs ?? "—"}  rollMs: ${s?.rollMs ?? "—"}  extraPauseMs: ${s?.extraPauseMs ?? (s ? s.tickMs - s.rollMs : "—")}`,
-      `  speed:  ${g.player.moveCooldownMs}ms/move`,
-      `  pos:    (${g.player.gx}, ${g.player.gz})  mark: ${g.grid.mark ? `(${g.grid.mark.x}, ${g.grid.mark.z})` : "—"}`,
+      `  speed:  ${(1000 / g.player.speed).toFixed(0)}ms/tile  (${g.player.speed.toFixed(1)} t/s)`,
+      `  pos:    (${g.player.gx.toFixed(2)}, ${g.player.gz.toFixed(2)})  tile: (${g.player.tx}, ${g.player.tz})  mark: ${g.grid.mark ? `(${g.grid.mark.x}, ${g.grid.mark.z})` : "—"}`,
       `  drop:   pendingRowDrop=${s?.pendingRowDrop ?? 0}  forbiddenDestroyed=${s?.forbiddenDestroyed ?? false}  floorLost=${s?.floorLost ?? false}`,
       `  haptics: ${!hap ? "no engine" : !hap.supported ? "n/a" : hap.enabled ? "ON" : "off"}`,
       `  last vibe: ${hap?.lastPattern ? (Array.isArray(hap.lastPattern) ? "["+hap.lastPattern.join(",")+"]" : hap.lastPattern+"ms") + " -> " + hap.lastResult : "—"}`,
@@ -203,14 +204,14 @@ export class Debugger {
       $("dbg-rollms").textContent = `${s.rollMs}ms`;
       const ep = s.extraPauseMs ?? (s.tickMs - s.rollMs);
       $("dbg-epms").textContent = `${ep}ms`;
-      $("dbg-spd").textContent = `${g.player.moveCooldownMs}ms`;
+      $("dbg-spd").textContent = `${(1000 / g.player.speed).toFixed(0)}ms/tile`;
       const pause = Math.max(0, s.tickMs - s.rollMs);
       $("dbg-ratio").textContent = `${(s.rollMs/1000).toFixed(2)}s roll + ${(pause/1000).toFixed(2)}s pause`;
       const next = Math.max(0, (s.nextTickAt - performance.now()) / 1000);
       $("dbg-next").textContent = `${next.toFixed(2)}s`;
     }
     const p = g.player;
-    $("dbg-player").textContent = `(${p.gx}, ${p.gz})`;
+    $("dbg-player").textContent = `(${p.gx.toFixed(2)}, ${p.gz.toFixed(2)})  tile (${p.tx},${p.tz})`;
     const m = g.grid.mark;
     $("dbg-mark").textContent = m ? `(${m.x}, ${m.z})` : "—";
 

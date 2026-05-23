@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=19";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=20";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -324,11 +324,8 @@ export class Renderer {
   }
 
   syncPlayer(player, now) {
-    const target = gridToWorld(player.gx, player.gz);
-    const prev = gridToWorld(player.prevGx, player.prevGz);
-    const u = player.slideProgress(now);
-    const x = prev.x + (target.x - prev.x) * u;
-    const z = prev.z + (target.z - prev.z) * u;
+    // Continuous-position: render directly from the player's float coords.
+    const p = gridToWorld(player.gx, player.gz);
     let y = 0;
     if (player.falling) {
       const fu = Math.min(1, (now - player.fallT0) / 800);
@@ -337,13 +334,12 @@ export class Renderer {
     } else {
       this.playerMesh.rotation.z = 0;
     }
-    this.playerMesh.position.set(x, y, z);
+    this.playerMesh.position.set(p.x, y, p.z);
 
-    // Walk cycle: swing the legs while the player has been moving recently.
+    // Walk cycle: swing the legs whenever the player is actually moving.
     if (this.playerLegL && this.playerLegR && !player.falling) {
-      const sinceMove = (now - player.lastMoveAt) / 1000;
-      const stepping = sinceMove < 0.32;
-      if (stepping) {
+      const moving = (player.vx !== 0 || player.vz !== 0);
+      if (moving) {
         const phase = (now / 1000) * 9;
         const swing = Math.sin(phase) * 0.55;
         this.playerLegL.rotation.x = swing;

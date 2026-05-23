@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=19";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=19";
+import { Cube } from "./cube.js?v=20";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=20";
 
 export class Stage {
   constructor(stageDef) {
@@ -106,7 +106,7 @@ export class Stage {
             for (let x = 0; x < GRID_W; x++) grid.tiles[x][front] = false;
             events.rowsDropped++;
             this.floorLost = true;
-            if (player.gz === front) events.takenWithRow = true;
+            if (player.tz === front) events.takenWithRow = true;
             front = this.frontEdge(grid); // recompute for subsequent cubes this tick
           }
         }
