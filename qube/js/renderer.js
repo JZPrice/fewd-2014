@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=33";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=34";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -122,52 +122,58 @@ export class Renderer {
   }
 
   _buildPlatformBody() {
-    // The underbody is a stack of progressively darker slabs with thin gaps.
-    // The visible seams between slabs read as depth markers, and the lower
-    // slabs fade into fog so the column reads as bottomless. Each slab is
-    // slightly inset from the one above so the silhouette tapers very
-    // gently inward as it descends.
-    this.platformBody = new THREE.Group();
-    const baseW = GRID_W * TILE * 1.04;
-    const baseD = GRID_D * TILE * 1.04;
-    const slabs = 24;
-    const slabH = 2.4;
-    const gap = 0.10;
-    for (let i = 0; i < slabs; i++) {
-      const yTop = -0.25 - i * (slabH + gap);
-      const yMid = yTop - slabH / 2;
-      const t = i / (slabs - 1);
-      // Lightness ramps from a visible ~22% near the top down to ~4% deep
-      // below, so each subsequent slab is darker than the last.
-      const light = Math.max(3, Math.round(22 - t * 19));
-      const color = new THREE.Color(`hsl(228, 18%, ${light}%)`);
-      // Gentle inward taper - barely perceptible but adds depth cue.
-      const inset = i * 0.02;
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(baseW - inset, slabH, baseD - inset),
-        new THREE.MeshLambertMaterial({ color })
-      );
-      mesh.position.set(0, yMid, this._lookZ);
-      mesh.receiveShadow = true;
-      this.platformBody.add(mesh);
+    // Stack of GRID_W x GRID_D unit cubes - same size, color, and gap as
+    // the floor tiles above. Visually the platform reads as one giant
+    // column of identical blocks fading into fog. InstancedMesh keeps
+    // it to a single draw call.
+    const LAYERS = 18;
+    const COUNT = GRID_W * GRID_D * LAYERS;
+    const geom = new THREE.BoxGeometry(TILE * 0.96, TILE * 0.96, TILE * 0.96);
+    const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
+    const inst = new THREE.InstancedMesh(geom, mat, COUNT);
+    inst.castShadow = false;
+    inst.receiveShadow = true;
+    const dummy = new THREE.Object3D();
+    let i = 0;
+    for (let layer = 0; layer < LAYERS; layer++) {
+      // Floor tiles are centered at y=-0.5 (1-unit cubes with top at y=0),
+      // so the first underbody layer sits centered at y=-1.5, the next at
+      // y=-2.5, and so on.
+      const y = -TILE / 2 - (layer + 1) * TILE;
+      for (let x = 0; x < GRID_W; x++) {
+        for (let z = 0; z < GRID_D; z++) {
+          const p = gridToWorld(x, z);
+          dummy.position.set(p.x, y, p.z);
+          dummy.updateMatrix();
+          inst.setMatrixAt(i++, dummy.matrix);
+        }
+      }
     }
-    this.scene.add(this.platformBody);
+    inst.instanceMatrix.needsUpdate = true;
+    this.platformBody = inst;
+    this.scene.add(inst);
   }
 
   _buildFloor() {
     this.floorGroup = new THREE.Group();
     this.scene.add(this.floorGroup);
     this.floorMeshes = [];
-    const geo = new THREE.BoxGeometry(TILE * 0.98, 0.2, TILE * 0.98);
+    // Floor tiles are now full unit cubes matching the underbody blocks.
+    // Center at y=-0.5, so the top face is at y=0 (where the player walks).
+    const geo = new THREE.BoxGeometry(TILE * 0.96, TILE * 0.96, TILE * 0.96);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
+    const REST_Y = -TILE / 2;
     for (let x = 0; x < GRID_W; x++) {
       this.floorMeshes[x] = [];
       for (let z = 0; z < GRID_D; z++) {
         const m = new THREE.Mesh(geo, mat);
         const p = gridToWorld(x, z);
-        m.position.set(p.x, -0.1, p.z);
+        m.position.set(p.x, REST_Y, p.z);
         m.receiveShadow = true;
-        m.userData.targetY = -0.1;
+        m.castShadow = false;
+        m.userData.restY = REST_Y;
+        m.userData.targetY = REST_Y;
+        m.userData.vy = 0;
         this.floorGroup.add(m);
         this.floorMeshes[x][z] = m;
       }
@@ -395,25 +401,55 @@ export class Renderer {
       for (let z = 0; z < GRID_D; z++) {
         const mesh = this.floorMeshes[x][z];
         const exists = grid.tiles[x][z];
+        const ud = mesh.userData;
         if (exists) {
+          // Coming back: clear drop state and aim back at rest.
+          if (ud.targetY < ud.restY) {
+            ud.vy = 0;
+            ud.dropping = false;
+          }
           mesh.visible = true;
-          mesh.userData.targetY = -0.1;
-        } else {
-          mesh.userData.targetY = -2.5;
-          if (mesh.position.y < -2.4) mesh.visible = false;
+          ud.targetY = ud.restY;
+        } else if (!ud.dropping) {
+          // First frame this tile is removed - kick off a fresh drop.
+          ud.targetY = ud.restY - 10;
+          ud.vy = -0.5;
+          ud.dropping = true;
         }
       }
     }
   }
 
   _animateFloorDrops(dt) {
+    const G = 28;            // gravity for dropping tiles
+    const TILT_RATE = 4.0;   // radians/sec forward tilt
+    const MAX_TILT = Math.PI * 0.55;
     for (let x = 0; x < GRID_W; x++) {
       for (let z = 0; z < GRID_D; z++) {
         const m = this.floorMeshes[x][z];
-        const dy = m.userData.targetY - m.position.y;
-        if (Math.abs(dy) > 0.001) {
-          m.position.y += dy * Math.min(1, dt * 6);
-          if (m.userData.targetY < -2 && m.position.y < -2.4) m.visible = false;
+        const ud = m.userData;
+        if (ud.dropping) {
+          // Gravity-based fall plus a forward tilt so the row visibly
+          // tumbles off the edge rather than sliding straight down.
+          ud.vy -= G * dt;
+          m.position.y += ud.vy * dt;
+          if (m.rotation.x < MAX_TILT) {
+            m.rotation.x = Math.min(MAX_TILT, m.rotation.x + dt * TILT_RATE);
+          }
+          if (m.position.y < ud.restY - 2) {
+            m.visible = false;
+          }
+        } else {
+          // Resting or springing back: smooth lerp toward targetY and ease
+          // any leftover tilt back to flat.
+          const dy = ud.targetY - m.position.y;
+          if (Math.abs(dy) > 0.001) {
+            m.position.y += dy * Math.min(1, dt * 8);
+          }
+          if (m.rotation.x > 0.001) {
+            m.rotation.x *= Math.max(0, 1 - dt * 8);
+            if (m.rotation.x < 0.005) m.rotation.x = 0;
+          }
         }
       }
     }
