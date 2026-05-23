@@ -1,10 +1,10 @@
-import { Renderer } from "./renderer.js?v=21";
-import { Input } from "./input.js?v=21";
-import { AudioEngine } from "./audio.js?v=21";
-import { HUD } from "./hud.js?v=21";
-import { Game } from "./game.js?v=21";
-import { Debugger } from "./debug.js?v=21";
-import { Haptics } from "./haptics.js?v=21";
+import { Renderer } from "./renderer.js?v=22";
+import { Input } from "./input.js?v=22";
+import { AudioEngine } from "./audio.js?v=22";
+import { HUD } from "./hud.js?v=22";
+import { Game } from "./game.js?v=22";
+import { Debugger } from "./debug.js?v=22";
+import { Haptics } from "./haptics.js?v=22";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=21";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=22";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -100,7 +100,7 @@ export class Renderer {
     this._camPosX = target.x;  this._camVelX = 0;
     this._camPosZ = target.z;  this._camVelZ = 0;
     this._lookPosX = target.x; this._lookVelX = 0;
-    this._lookPosZ = (this._lookZ + target.z) * 0.5; this._lookVelZ = 0;
+    this._lookPosZ = target.z - 1.5; this._lookVelZ = 0;
   }
 
   _buildLights() {
@@ -415,20 +415,22 @@ export class Renderer {
     const target = gridToWorld(player.gx, player.gz);
     const halflife = this.followHalflife;
 
-    // Critically-damped spring on follow position (x, z) and lookAt x.
+    // Critically-damped spring on follow position (x, z) and the lookAt mix.
     [this._camPosX,  this._camVelX]  = Renderer._springStep(this._camPosX,  this._camVelX,  target.x, dt, halflife);
     [this._camPosZ,  this._camVelZ]  = Renderer._springStep(this._camPosZ,  this._camVelZ,  target.z, dt, halflife);
     [this._lookPosX, this._lookVelX] = Renderer._springStep(this._lookPosX, this._lookVelX, target.x, dt, halflife);
-    // LookAt z trails to a 50/50 mix of playfield middle and player z, also damped.
-    const lookZTarget = this._lookZ * 0.5 + target.z * 0.5;
+    // LookAt z trails 1.5 units ahead of (deeper than) the player so the
+    // upcoming cubes stay framed above them on screen.
+    const lookZTarget = target.z - 1.5;
     [this._lookPosZ, this._lookVelZ] = Renderer._springStep(this._lookPosZ, this._lookVelZ, lookZTarget, dt, halflife);
 
-    // Apply the spring outputs with the same framing scales we had before.
+    // Chase cam: the camera Z follows the player Z directly with a fixed
+    // offset behind them, so the player stays at a consistent screen size
+    // no matter how deep into the runway they are.
     const camX = this._camPosX * 0.55;
-    const camZNudge = (this._camPosZ - this._lookZ) * 0.08;
     this.camera.position.x = camX;
-    this.camera.position.z = this._baseCamZ + camZNudge;
     this.camera.position.y = this._baseCamY;
+    this.camera.position.z = this._camPosZ + this._followDZ;
 
     // Damped impact shake. Random sample per frame for chaotic feel; amplitude
     // ramps linearly to zero over the shake duration.
@@ -465,18 +467,20 @@ export class Renderer {
     const aspect = w / h;
     this.camera.aspect = aspect;
 
-    let camY, camZ, fov;
+    // _baseCamY = height above floor; _followDZ = how far behind the player
+    // the camera sits. Smaller = tighter framing. Closer for narrower screens.
+    let camY, followDZ, fov;
     if (aspect < 0.9) {
-      fov = 68; camY = 9.0; camZ = 8.5;
+      fov = 68; camY = 6.8; followDZ = 5.5;
     } else if (aspect < 1.4) {
-      fov = 62; camY = 7.0; camZ = 7.0;
+      fov = 62; camY = 5.6; followDZ = 4.6;
     } else {
-      fov = 58; camY = 5.8; camZ = 5.8;
+      fov = 58; camY = 4.8; followDZ = 4.0;
     }
     this.camera.fov = fov;
-    this.camera.position.set(0, camY, camZ);
-    this._baseCamZ = camZ;
     this._baseCamY = camY;
+    this._followDZ = followDZ;
+    this.camera.position.set(0, camY, this._lookZ + followDZ);
     this.camera.lookAt(0, 0.4, this._lookZ);
     this.camera.updateProjectionMatrix();
   }
