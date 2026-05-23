@@ -70,6 +70,15 @@ export class Debugger {
         </span>
       </div>
       <div class="dbg-stat">
+        <span>cam halflife (ms)</span>
+        <span class="dbg-tune">
+          <button data-act="cam--">−50</button>
+          <b id="dbg-cam">—</b>
+          <button data-act="cam++">+50</button>
+        </span>
+      </div>
+      <div class="dbg-stat"><span>last shake</span><b id="dbg-shake">—</b></div>
+      <div class="dbg-stat">
         <span>pause / roll ratio</span>
         <b id="dbg-ratio">—</b>
       </div>
@@ -83,6 +92,7 @@ export class Debugger {
         <button data-act="skipwave">skip wave</button>
       </div>
       <div class="dbg-row">
+        <button data-act="shaketest">shake test</button>
         <button data-act="copy" id="dbg-copy">copy state</button>
       </div>
     `;
@@ -123,6 +133,9 @@ export class Debugger {
       // spd buttons read intuitively (- slower, + faster).
       case "spd--": g.player.speed = Math.max(0.5, g.player.speed - 0.5); break;
       case "spd++": g.player.speed = Math.min(20,  g.player.speed + 0.5); break;
+      case "cam--": g.renderer.followHalflife = Math.max(50,   (g.renderer.followHalflife ?? 300) - 50); break;
+      case "cam++": g.renderer.followHalflife = Math.min(1500, (g.renderer.followHalflife ?? 300) + 50); break;
+      case "shaketest": g.renderer.shake?.(0.20, 280); break;
       case "copy":  this._copyState(); break;
       case "hap":
         if (g.haptics) {
@@ -165,6 +178,7 @@ export class Debugger {
       `  next:   ${next?.toFixed?.(2) ?? "—"}s`,
       `  tickMs: ${s?.tickMs ?? "—"}  rollMs: ${s?.rollMs ?? "—"}  extraPauseMs: ${s?.extraPauseMs ?? (s ? s.tickMs - s.rollMs : "—")}`,
       `  speed:  ${(1000 / g.player.speed).toFixed(0)}ms/tile  (${g.player.speed.toFixed(1)} t/s)`,
+      `  cam:    halflife=${g.renderer.followHalflife ?? 300}ms  lastShake=${g.renderer._lastShake ? `amp ${g.renderer._lastShake.amp.toFixed(2)} dur ${g.renderer._lastShake.durMs}ms` : "—"}`,
       `  pos:    (${g.player.gx.toFixed(2)}, ${g.player.gz.toFixed(2)})  tile: (${g.player.tx}, ${g.player.tz})  mark: ${g.grid.mark ? `(${g.grid.mark.x}, ${g.grid.mark.z})` : "—"}`,
       `  drop:   pendingRowDrop=${s?.pendingRowDrop ?? 0}  forbiddenDestroyed=${s?.forbiddenDestroyed ?? false}  floorLost=${s?.floorLost ?? false}`,
       `  haptics: ${!hap ? "no engine" : !hap.supported ? "n/a" : hap.enabled ? "ON" : "off"}`,
@@ -205,6 +219,11 @@ export class Debugger {
       const ep = s.extraPauseMs ?? (s.tickMs - s.rollMs);
       $("dbg-epms").textContent = `${ep}ms`;
       $("dbg-spd").textContent = `${(1000 / g.player.speed).toFixed(0)}ms/tile`;
+      $("dbg-cam").textContent = `${g.renderer.followHalflife ?? 300}ms`;
+      const ls = g.renderer._lastShake;
+      $("dbg-shake").textContent = ls
+        ? `amp ${ls.amp.toFixed(2)} / ${ls.durMs}ms (${((Date.now() - ls.at) / 1000).toFixed(1)}s ago)`
+        : "—";
       const pause = Math.max(0, s.tickMs - s.rollMs);
       $("dbg-ratio").textContent = `${(s.rollMs/1000).toFixed(2)}s roll + ${(pause/1000).toFixed(2)}s pause`;
       const next = Math.max(0, (s.nextTickAt - performance.now()) / 1000);

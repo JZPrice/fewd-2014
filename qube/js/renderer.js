@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS } from "./config.js?v=20";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=21";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -48,9 +48,59 @@ export class Renderer {
       emissiveIntensity: 0.5,
     });
 
-    this._camTargetX = 0;
+    // Critically-damped spring state for the follow camera. Position is
+    // tracked separately from velocity so the spring is stable for any dt.
+    this._camPosX = 0; this._camVelX = 0;
+    this._camPosZ = 0; this._camVelZ = 0;
+    this._lookPosX = 0; this._lookVelX = 0;
+    this._lookPosZ = this._lookZ; this._lookVelZ = 0;
+    this.followHalflife = CAM_HALFLIFE_MS;
+
+    // Impact-shake state.
+    this._shakeT0 = 0;
+    this._shakeEnd = 0;
+    this._shakeAmp = 0;
+    this._lastShake = null;
+
     this.onResize();
     window.addEventListener("resize", () => this.onResize());
+  }
+
+  // Implicit critically-damped spring. Frame-rate independent, no overshoot.
+  // halflifeMs = time for the distance to halve.
+  static _springStep(curPos, curVel, targetPos, dt, halflifeMs) {
+    const omega = 693.1472 / Math.max(1, halflifeMs);  // ln(2)*1000 / halflife
+    const f    = 1 + 2 * omega * dt;
+    const oo   = omega * omega;
+    const hoo  = dt * oo;
+    const hhoo = dt * hoo;
+    const inv  = 1 / (f + hhoo);
+    return [
+      (f * curPos + dt * curVel + hhoo * targetPos) * inv,
+      (curVel + hoo * (targetPos - curPos)) * inv,
+    ];
+  }
+
+  // Trigger a damped jitter on the camera. If a stronger shake is already
+  // in flight, the new request is ignored so big events aren't overridden
+  // by trailing small ones.
+  shake(amp, durMs) {
+    const now = performance.now();
+    if (now < this._shakeEnd && this._shakeAmp > amp) return;
+    this._shakeT0 = now;
+    this._shakeEnd = now + durMs;
+    this._shakeAmp = amp;
+    this._lastShake = { amp, durMs, at: now };
+  }
+
+  // Snap the follow camera state to the player. Use at stage start / death
+  // so the camera doesn't lerp across the playfield on respawn.
+  resetFollow(player) {
+    const target = gridToWorld(player.gx, player.gz);
+    this._camPosX = target.x;  this._camVelX = 0;
+    this._camPosZ = target.z;  this._camVelZ = 0;
+    this._lookPosX = target.x; this._lookVelX = 0;
+    this._lookPosZ = (this._lookZ + target.z) * 0.5; this._lookVelZ = 0;
   }
 
   _buildLights() {
@@ -363,25 +413,36 @@ export class Renderer {
 
   updateCamera(player, dt) {
     const target = gridToWorld(player.gx, player.gz);
-    // Smooth follow with exponential lerp - frame-rate independent.
-    const k = 1 - Math.exp(-dt * 6.0);
-    this._camTargetX += (target.x - this._camTargetX) * k;
-    if (this._camTargetZ === undefined) this._camTargetZ = target.z;
-    this._camTargetZ += (target.z - this._camTargetZ) * k;
+    const halflife = this.followHalflife;
 
-    // Camera pans a fraction of the player's x so the playfield doesn't whip
-    // around, plus a subtle forward lean when the player advances down the
-    // runway. The fixed Y/Z from onResize provides the baseline framing.
-    const camX = this._camTargetX * 0.55;
-    const camZNudge = (this._camTargetZ - this._lookZ) * 0.08;
+    // Critically-damped spring on follow position (x, z) and lookAt x.
+    [this._camPosX,  this._camVelX]  = Renderer._springStep(this._camPosX,  this._camVelX,  target.x, dt, halflife);
+    [this._camPosZ,  this._camVelZ]  = Renderer._springStep(this._camPosZ,  this._camVelZ,  target.z, dt, halflife);
+    [this._lookPosX, this._lookVelX] = Renderer._springStep(this._lookPosX, this._lookVelX, target.x, dt, halflife);
+    // LookAt z trails to a 50/50 mix of playfield middle and player z, also damped.
+    const lookZTarget = this._lookZ * 0.5 + target.z * 0.5;
+    [this._lookPosZ, this._lookVelZ] = Renderer._springStep(this._lookPosZ, this._lookVelZ, lookZTarget, dt, halflife);
+
+    // Apply the spring outputs with the same framing scales we had before.
+    const camX = this._camPosX * 0.55;
+    const camZNudge = (this._camPosZ - this._lookZ) * 0.08;
     this.camera.position.x = camX;
     this.camera.position.z = this._baseCamZ + camZNudge;
+    this.camera.position.y = this._baseCamY;
 
-    // LookAt biases toward the player so the whole frame leans where they
-    // are - this is what makes the camera feel like it's tracking them.
-    const lookX = this._camTargetX * 0.65;
-    const lookZ = this._lookZ * 0.5 + this._camTargetZ * 0.5;
-    this.camera.lookAt(lookX, 0.4, lookZ);
+    // Damped impact shake. Random sample per frame for chaotic feel; amplitude
+    // ramps linearly to zero over the shake duration.
+    const now = performance.now();
+    if (now < this._shakeEnd) {
+      const u = (now - this._shakeT0) / (this._shakeEnd - this._shakeT0);
+      const a = this._shakeAmp * (1 - u);
+      this.camera.position.x += (Math.random() * 2 - 1) * a;
+      this.camera.position.y += (Math.random() * 2 - 1) * a * 0.5;
+      this.camera.position.z += (Math.random() * 2 - 1) * a;
+    }
+
+    const lookX = this._lookPosX * 0.65;
+    this.camera.lookAt(lookX, 0.4, this._lookPosZ);
   }
 
   pulseMark(strength) {

@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=20";
-import { Player } from "./player.js?v=20";
-import { Stage } from "./stage.js?v=20";
-import { STAGES } from "./stages.js?v=20";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=20";
+import { Grid } from "./grid.js?v=21";
+import { Player } from "./player.js?v=21";
+import { Stage } from "./stage.js?v=21";
+import { STAGES } from "./stages.js?v=21";
+import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=21";
 
 const STATE = {
   TITLE: "title",
@@ -61,6 +61,7 @@ export class Game {
     this.grid.reset();
     this.player.reset();
     this.renderer.clearAllCubes();
+    this.renderer.resetFollow?.(this.player);
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.setStage(def.id);
@@ -91,6 +92,7 @@ export class Game {
       }
       this.audio.boom();
       this.haptics.rowDrop();
+      this.renderer.shake?.(0.16, 280);
       this.hud.flash(`-${drops} ROW${drops > 1 ? "S" : ""}`, 1100);
       this.stage.pendingRowDrop = 0;
     }
@@ -123,6 +125,7 @@ export class Game {
     this.state = STATE.DEAD;
     this.audio.death();
     this.haptics.death();
+    this.renderer.shake?.(0.30, 400);
     this.player.startFall(performance.now());
     setTimeout(() => this.hud.showGameOver(reason), 700);
   }
@@ -157,15 +160,18 @@ export class Game {
       this.grid.addBomb(m.x, m.z);
       this.audio.advCharge();
       this.haptics.bombPlace();
+      this.renderer.shake?.(0.05, 120);
       this.hud.setBombs(this.grid.bombs.length);
     } else if (hit.isForbidden()) {
       this.stage.forbiddenDestroyed = true;
       this._applyForbiddenBlast(m.x, m.z);
       this.audio.boom();
       this.haptics.forbidden();
+      this.renderer.shake?.(0.18, 240);
     } else {
       this.audio.capture();
       this.haptics.capture();
+      this.renderer.shake?.(0.04, 90);
     }
 
     this._extraPause();
@@ -204,6 +210,7 @@ export class Game {
     if (killedSet.size > 0) {
       this.audio.boom();
       this.haptics.detonate();
+      this.renderer.shake?.(0.20, 280);
       this._extraPause();
     }
     this.hud.setCubes(this.stage.remainingCubes());
@@ -298,6 +305,7 @@ export class Game {
       if (events.rowsDropped > 0) {
         this.audio.boom();
         this.haptics.rowDrop();
+        this.renderer.shake?.(0.16, 280);
         this.hud.flash(`-${events.rowsDropped} ROW${events.rowsDropped > 1 ? "S" : ""}`, 900);
       }
 

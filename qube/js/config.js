@@ -31,3 +31,7 @@ export const COLORS = {
 };
 
 export const FORBIDDEN_HOLE_DEPTH = 3;
+
+// Camera follow half-life in ms (time for the camera to halve its distance
+// to the target). Higher = slower, more "weighty" feel.
+export const CAM_HALFLIFE_MS = 300;
