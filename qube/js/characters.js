@@ -25,8 +25,10 @@ export const CHARACTERS = [
     clips: { idle: "Idle", walk: "Walking", run: "Running", death: "Death" },
   },
   { id: "knight",    name: "Knight",    file: "assets/characters/knight.glb",    ...KAYKIT },
-  { id: "mage",      name: "Mage",      file: "assets/characters/mage.glb",      ...KAYKIT },
-  { id: "rogue",     name: "Rogue",     file: "assets/characters/rogue.glb",     ...KAYKIT },
+  // Mage robe and Rogue cape extend below the feet in the mesh - shrinking
+  // yOffset on these two so the FEET, not the cloth hem, touch the floor.
+  { id: "mage",      name: "Mage",      file: "assets/characters/mage.glb",      ...KAYKIT, yOffset: 0.24 },
+  { id: "rogue",     name: "Rogue",     file: "assets/characters/rogue.glb",     ...KAYKIT, yOffset: 0.26 },
   { id: "barbarian", name: "Barbarian", file: "assets/characters/barbarian.glb", ...KAYKIT },
 ];
 
