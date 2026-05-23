@@ -6,13 +6,3 @@ robot.glb       Robot Expressive
                 (https://www.donmccurdy.com/)
                 Source: three.js examples
                 License: CC0 1.0
-
-fox.glb         Low poly fox
-                Mesh by PixelMannen (CC0 1.0)
-                Rigging and animation by @tomkranis on Sketchfab /
-                @tomkranis on GitHub (CC BY 4.0)
-                Source: KhronosGroup/glTF-Sample-Assets
-                  https://github.com/KhronosGroup/glTF-Sample-Assets
-                  /tree/main/Models/Fox
-                License: CC BY 4.0 (attribution required for the rig
-                and animations)

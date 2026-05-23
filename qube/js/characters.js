@@ -15,14 +15,6 @@ export const CHARACTERS = [
     yOffset: 0,
     clips: { idle: "Idle", walk: "Walking", run: "Running", death: "Death" },
   },
-  {
-    id: "fox",
-    name: "Fox",
-    file: "assets/characters/fox.glb",
-    scale: 0.012,
-    yOffset: 0,
-    clips: { idle: "Survey", walk: "Walk", run: "Run" },
-  },
 ];
 
 export function characterById(id) {
