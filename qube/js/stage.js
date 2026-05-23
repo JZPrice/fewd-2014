@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=12";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=12";
+import { Cube } from "./cube.js?v=13";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=13";
 
 export class Stage {
   constructor(stageDef) {
@@ -88,9 +88,16 @@ export class Stage {
         continue;
       }
 
-      // Past front row: cube fell off, taking the player with it.
+      // Past front row.
       if (toZ < 0) {
-        events.fellOff = true;
+        if (cube.isForbidden()) {
+          // Forbidden cubes are meant to be ignored - they roll off the
+          // front harmlessly, no death, just gone.
+          cube.dead = true;
+        } else {
+          // Normal / advantage cubes falling off past the player = death.
+          events.fellOff = true;
+        }
         continue;
       }
 
