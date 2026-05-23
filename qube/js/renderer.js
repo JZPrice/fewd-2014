@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=27";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=28";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -237,15 +237,12 @@ export class Renderer {
         if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
       });
 
-      // Auto-scale: measure model height and scale so the character is
-      // ~0.95 tiles tall regardless of source units (cm vs m vs etc.).
-      const box = new THREE.Box3().setFromObject(model);
-      const h = box.max.y - box.min.y;
-      const scale = h > 0 ? 0.95 / h : 1;
+      // Use the explicit per-character scale from characters.js (auto-scale
+      // via Box3 turned out to be unreliable on Mixamo-derived rigs where
+      // internal node scales aren't reflected in the bounding box).
+      const scale = charDef.scale ?? 1;
       model.scale.setScalar(scale);
-      // Put the feet at y=0 (origin may be at the model's pelvis).
-      const minYScaled = box.min.y * scale;
-      model.position.y = -minYScaled;
+      model.position.y = charDef.yOffset ?? 0;
 
       this.playerMesh.add(model);
       this._loadedModel = model;
