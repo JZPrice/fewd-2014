@@ -2,6 +2,7 @@ export class Input {
   constructor() {
     this.held = new Set();
     this.queue = [];
+    this.virtualAxis = { dx: 0, dz: 0 };
     this._onDown = (e) => this._down(e);
     this._onUp = (e) => this._up(e);
   }
@@ -33,6 +34,10 @@ export class Input {
   }
 
   axis() {
+    // Joystick (analog) wins when it's actively pushed. Returns float
+    // components in [-1, 1] so the player class can scale velocity.
+    const va = this.virtualAxis;
+    if (va.dx !== 0 || va.dz !== 0) return { dx: va.dx, dz: va.dz };
     let dx = 0, dz = 0;
     if (this.held.has("a") || this.held.has("arrowleft"))  dx -= 1;
     if (this.held.has("d") || this.held.has("arrowright")) dx += 1;
@@ -53,4 +58,5 @@ export class Input {
   holdVirtual(name) { this.held.add(name); }
   releaseVirtual(name) { this.held.delete(name); }
   pushAction(name) { this.queue.push(name); }
+  setVirtualAxis(dx, dz) { this.virtualAxis.dx = dx; this.virtualAxis.dz = dz; }
 }

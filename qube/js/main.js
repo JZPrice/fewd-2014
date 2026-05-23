@@ -1,10 +1,10 @@
-import { Renderer } from "./renderer.js?v=22";
-import { Input } from "./input.js?v=22";
-import { AudioEngine } from "./audio.js?v=22";
-import { HUD } from "./hud.js?v=22";
-import { Game } from "./game.js?v=22";
-import { Debugger } from "./debug.js?v=22";
-import { Haptics } from "./haptics.js?v=22";
+import { Renderer } from "./renderer.js?v=23";
+import { Input } from "./input.js?v=23";
+import { AudioEngine } from "./audio.js?v=23";
+import { HUD } from "./hud.js?v=23";
+import { Game } from "./game.js?v=23";
+import { Debugger } from "./debug.js?v=23";
+import { Haptics } from "./haptics.js?v=23";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -84,40 +84,18 @@ function setupJoystick(rootSelector) {
   let activePointerId = null;
   let cx = 0, cy = 0;
   let radius = 60;
-  const state = { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
 
-  function updateHeld(next) {
-    for (const key of Object.keys(state)) {
-      if (state[key] !== next[key]) {
-        if (next[key]) input.holdVirtual(key);
-        else input.releaseVirtual(key);
-        state[key] = next[key];
-      }
-    }
-  }
-
-  // 8-way snap. Each 45-degree sector maps to a cardinal or diagonal
-  // direction. Diagonals report TWO held keys so the game can resolve a
-  // true two-axis step.
-  function dirsFromOffset(dx, dy, r) {
-    const result = { arrowleft: false, arrowright: false, arrowup: false, arrowdown: false };
+  // Convert a screen-space offset from the stick center into an analog
+  // 2D axis in grid space. Magnitude in [0, 1] scales the player velocity,
+  // direction is the unit vector. Inside the dead zone returns (0, 0).
+  function axisFromOffset(dx, dy, r) {
     const mag = Math.hypot(dx, dy);
-    if (mag < r * 0.18) return result;
-    let angle = Math.atan2(dy, dx);
-    if (angle < 0) angle += 2 * Math.PI;
-    const sector = Math.round(angle / (Math.PI / 4)) % 8;
-    // Screen-space: +dy = down on screen, -dy = up on screen.
-    switch (sector) {
-      case 0: result.arrowright = true; break;
-      case 1: result.arrowright = true; result.arrowdown = true; break;
-      case 2: result.arrowdown = true; break;
-      case 3: result.arrowleft = true;  result.arrowdown = true; break;
-      case 4: result.arrowleft = true; break;
-      case 5: result.arrowleft = true;  result.arrowup = true; break;
-      case 6: result.arrowup = true; break;
-      case 7: result.arrowright = true; result.arrowup = true; break;
-    }
-    return result;
+    if (mag < r * 0.18) return { ax: 0, az: 0 };
+    const m = Math.min(1, mag / r);
+    const ux = dx / mag, uy = dy / mag;
+    // Screen +dy points down, which is the player going TOWARD the front of
+    // the platform (-dz in grid coords). Invert.
+    return { ax: ux * m, az: -uy * m };
   }
 
   function moveStick(dx, dy) {
@@ -149,15 +127,17 @@ function setupJoystick(rootSelector) {
     const dx = e.clientX - cx;
     const dy = e.clientY - cy;
     moveStick(dx, dy);
-    updateHeld(dirsFromOffset(dx, dy, radius));
+    const { ax, az } = axisFromOffset(dx, dy, radius);
+    input.setVirtualAxis(ax, az);
   }
 
   function onUp(e) {
-    if (e.pointerId !== activePointerId) return;
+    if (activePointerId === null) return;
+    if (e && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
     activePointerId = null;
     stick.classList.add("snap");
     moveStick(0, 0);
-    updateHeld({ arrowleft: false, arrowright: false, arrowup: false, arrowdown: false });
+    input.setVirtualAxis(0, 0);
     base.classList.remove("active");
     clearTimeout(snapTimer);
     snapTimer = setTimeout(() => stick.classList.remove("snap"), 220);
@@ -168,6 +148,17 @@ function setupJoystick(rootSelector) {
   base.addEventListener("pointerup", onUp);
   base.addEventListener("pointercancel", onUp);
   base.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  // Safety net: setPointerCapture isn't 100% reliable on iOS Safari, and a
+  // touch can end without firing pointerup (system interrupt, multitouch
+  // confusion, tab visibility change). Mirror the release on window so the
+  // joystick can't get stuck in the held state.
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+  window.addEventListener("blur", () => onUp({}));
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) onUp({});
+  });
 }
 
 setupJoystick(".joystick");

@@ -1,4 +1,4 @@
-import { GRID_W } from "./config.js?v=22";
+import { GRID_W } from "./config.js?v=23";
 
 // Continuous-position player. Position is stored as float grid coords
 // (gx, gz) and advanced each frame by a real velocity. tx / tz are the
@@ -29,16 +29,19 @@ export class Player {
   get tx() { return Math.round(this.gx); }
   get tz() { return Math.round(this.gz); }
 
-  // Held axis from input, integer components in [-1, 1].
+  // Intent components are in [-1, 1]. Magnitude scales speed (so a half-push
+  // on the joystick moves the player at half speed); direction is normalized
+  // so diagonals aren't faster than cardinals.
   setIntent(dx, dz) {
     const mag = Math.hypot(dx, dz);
     if (mag === 0) {
       this.vx = 0;
       this.vz = 0;
     } else {
-      // Normalize so diagonals aren't faster than cardinals.
-      this.vx = (dx / mag) * this.speed;
-      this.vz = (dz / mag) * this.speed;
+      const m = Math.min(1, mag);
+      const dirX = dx / mag, dirZ = dz / mag;
+      this.vx = dirX * this.speed * m;
+      this.vz = dirZ * this.speed * m;
     }
   }
 
