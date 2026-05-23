@@ -1,8 +1,8 @@
 // Catalog of selectable characters. Each entry includes the GLB path,
 // display name, an explicit `scale` (auto-scale via Box3 turned out to
-// be unreliable on the Mixamo-derived models), and a mapping from our
-// canonical action names (idle/walk/run/death) to the model's actual
-// animation clip names. Missing canonical clips fall back to idle.
+// be unreliable on most rigs), and a mapping from our canonical action
+// names (idle/walk/run/death) to the model's actual animation clip
+// names. Missing canonical clips fall back to idle.
 //
 // `yOffset` is optional; use it if a model's origin isn't at its feet.
 
@@ -16,20 +16,12 @@ export const CHARACTERS = [
     clips: { idle: "Idle", walk: "Walking", run: "Running", death: "Death" },
   },
   {
-    id: "soldier",
-    name: "Soldier",
-    file: "assets/characters/soldier.glb",
-    scale: 0.55,
+    id: "fox",
+    name: "Fox",
+    file: "assets/characters/fox.glb",
+    scale: 0.012,
     yOffset: 0,
-    clips: { idle: "Idle", walk: "Walk", run: "Run" },
-  },
-  {
-    id: "xbot",
-    name: "X-Bot",
-    file: "assets/characters/xbot.glb",
-    scale: 0.55,
-    yOffset: 0,
-    clips: { idle: "idle", walk: "walk", run: "run" },
+    clips: { idle: "Survey", walk: "Walk", run: "Run" },
   },
 ];
 
