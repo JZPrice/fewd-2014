@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=90";
-import { Player } from "./player.js?v=90";
-import { Stage } from "./stage.js?v=90";
-import { STAGES } from "./stages.js?v=90";
-import { GRID_W, GRID_D } from "./config.js?v=90";
+import { Grid } from "./grid.js?v=91";
+import { Player } from "./player.js?v=91";
+import { Stage } from "./stage.js?v=91";
+import { STAGES } from "./stages.js?v=91";
+import { GRID_W, GRID_D } from "./config.js?v=91";
 
 const STATE = {
   TITLE: "title",
@@ -195,7 +195,7 @@ export class Game {
 
     if (this.stage.hasMoreWaves()) {
       this.state = STATE.WAVE_INTERMISSION;
-      this._intermissionUntil = now + 1300;
+      this._intermissionUntil = now + 600;
     } else if (this.stageIndex < STAGES.length - 1) {
       this.state = STATE.STAGE_INTERMISSION;
       this._intermissionUntil = now + 1500;
