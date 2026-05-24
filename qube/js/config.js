@@ -11,7 +11,7 @@ export const TILE = 1;
 // grid cell - leaves a thin grout seam between adjacent blocks. 1.0
 // would weld them; 0.99 = ~1% gap. Renderer.setGroutInset() lets the
 // debug panel retune it at runtime.
-export const GROUT_INSET = 0.99;
+export const GROUT_INSET = 0.985;
 
 // Slide and cooldown match so each step blends into the next - no pause
 // between tile transitions while a direction is held.
