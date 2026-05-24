@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=92";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=93";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -757,7 +757,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=92", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=93", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -825,6 +825,70 @@ export class Renderer {
     mesh.rotation.y = t * Math.PI * 0.8;
   }
 
+  // Bomb-placement hint: when a green cube is captured and a real bomb
+  // takes its place, flash 9 ghost bombs across the 3x3 it covers so
+  // the player sees the blast zone, then fade them out leaving only
+  // the real tetrahedron behind.
+  spawnBombAreaGhost(cx, cz) {
+    if (!this._markGhostBase) return;
+    if (this._bombAreaGhost) {
+      for (const m of this._bombAreaGhost.meshes) this.scene.remove(m);
+    }
+    const meshes = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const x = cx + dx;
+        const z = cz + dz;
+        if (x < 0 || x >= this._stageW || z < 0 || z >= this._stageD) continue;
+        const mesh = this._markGhostBase.clone(true);
+        mesh.traverse((o) => {
+          if (o.isMesh) {
+            o.material = o.material.clone();
+            o.material.transparent = true;
+            o.material.depthWrite = false;
+            o.material.opacity = 0;
+            o.castShadow = false;
+            if (o.material.name === "Black" && o.material.color) {
+              o.material.color = new THREE.Color(0xe8eef8);
+              if (o.material.emissive) o.material.emissive = new THREE.Color(0xa8c0e0);
+              o.material.emissiveIntensity = 0.25;
+            }
+          }
+        });
+        const p = this._toWorld(x, z);
+        mesh.position.set(p.x, 0.45, p.z);
+        mesh.scale.setScalar(0.45);
+        mesh.userData.phase = Math.random() * Math.PI * 2;
+        this.scene.add(mesh);
+        meshes.push(mesh);
+      }
+    }
+    if (meshes.length === 0) return;
+    this._bombAreaGhost = { meshes, t0: performance.now(), duration: 1400 };
+  }
+
+  _animateBombAreaGhost() {
+    if (!this._bombAreaGhost) return;
+    const { meshes, t0, duration } = this._bombAreaGhost;
+    const t = (performance.now() - t0) / duration;
+    if (t >= 1) {
+      for (const m of meshes) this.scene.remove(m);
+      this._bombAreaGhost = null;
+      return;
+    }
+    const PEAK = 0.45;
+    let alpha;
+    if (t < 0.10)      alpha = (t / 0.10) * PEAK;
+    else if (t < 0.40) alpha = PEAK;
+    else               alpha = PEAK * (1 - (t - 0.40) / 0.60);
+    for (let i = 0; i < meshes.length; i++) {
+      const m = meshes[i];
+      m.traverse((o) => { if (o.isMesh) o.material.opacity = alpha; });
+      m.position.y = 0.45 + Math.sin(t * Math.PI * 2 + m.userData.phase) * 0.06;
+      m.rotation.y = m.userData.phase + t * Math.PI * 0.8;
+    }
+  }
+
   _buildBombs() {
     // Pool of up to N bomb visuals — each is a floating tetrahedron above its
     // tile plus a 3x3 ring of subtle red tile overlays showing the blast area.
@@ -875,9 +939,11 @@ export class Renderer {
         const b = bombs[i];
         const p = this._toWorld(b.cx, b.cz);
         slot.group.position.set(p.x, 0, p.z);
-        // Floating bob + rotation
+        // Floating bob + rotation. Centerline well above the cube tops
+        // (cubes peak at y=1.0) so the triangle never visually clips
+        // into a rolling block sharing the tile.
         const t = now / 1000;
-        slot.tri.position.y = 1.0 + Math.sin(t * 2.2 + i) * 0.12;
+        slot.tri.position.y = 1.7 + Math.sin(t * 2.2 + i) * 0.12;
         slot.tri.rotation.y = t * 1.4 + i;
         slot.tri.rotation.x = Math.sin(t * 1.1 + i) * 0.2;
         slot.group.visible = true;
@@ -1251,6 +1317,7 @@ export class Renderer {
   step(dt) {
     this._animateFloorDrops(dt);
     this._animateMarkGhost();
+    this._animateBombAreaGhost();
     if (this._mixer) this._mixer.update(dt);
     this._animateAbyssParticles(dt);
   }
