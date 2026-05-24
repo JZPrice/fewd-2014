@@ -74,18 +74,13 @@ html, body {
 
 .overlay.hidden { display: none; }
 
-.overlay h1 {
-  font-size: clamp(40px, 9vw, 96px);
-  letter-spacing: 0.4em;
-  font-weight: 200;
-  margin-bottom: 8px;
-}
-
-/* Title-specific: pixelated blackletter, tighter tracking + bigger size
-   to make the chunky pixels read. */
-#title h1 {
+/* All overlay titles + the mid-screen message flash use the pixelated
+   blackletter for a cohesive medieval game-UI feel. Tighter tracking +
+   bigger size to make the chunky pixels actually read; warm tint + soft
+   glow + hard drop shadow so they read as carved relics. */
+.overlay h1,
+#message {
   font-family: "Jacquard 24", "Helvetica Neue", serif;
-  font-size: clamp(72px, 16vw, 160px);
   letter-spacing: 0.04em;
   font-weight: 400;
   line-height: 0.95;
@@ -93,6 +88,16 @@ html, body {
   text-shadow:
     0 0 24px rgba(255, 210, 120, 0.35),
     0 4px 0 rgba(0, 0, 0, 0.6);
+}
+
+.overlay h1 {
+  font-size: clamp(64px, 14vw, 140px);
+  margin-bottom: 8px;
+}
+
+/* The main game title is louder than secondary screens. */
+#title h1 {
+  font-size: clamp(72px, 16vw, 160px);
   margin-bottom: 4px;
 }
 
@@ -195,10 +200,7 @@ kbd {
 #message {
   background: transparent;
   pointer-events: none;
-  font-size: clamp(36px, 7vw, 72px);
-  letter-spacing: 0.3em;
-  font-weight: 200;
-  text-shadow: 0 0 24px rgba(120, 200, 255, 0.6);
+  font-size: clamp(56px, 11vw, 120px);
   animation: msgIn 0.4s ease-out;
   z-index: 20;
 }
