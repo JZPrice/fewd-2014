@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=35";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=36";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -294,17 +294,25 @@ export class Renderer {
   }
 
   _buildMark() {
-    const g = new THREE.PlaneGeometry(TILE * 0.85, TILE * 0.85);
-    const m = new THREE.MeshBasicMaterial({
+    // A vertical glowing shaft anchored on the marked tile. Tall enough
+    // to clearly rise above any cube sitting on the same tile. Depth
+    // test off + additive blending = always visible, always reads as
+    // "light", even through cubes.
+    const r = TILE * 0.35;
+    const h = 5;
+    const geo = new THREE.CylinderGeometry(r, r, h, 16, 1, false);
+    const mat = new THREE.MeshBasicMaterial({
       color: COLORS.mark,
       transparent: true,
-      opacity: 0.7,
-      side: THREE.DoubleSide,
+      opacity: 0.4,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
     });
-    this.markMesh = new THREE.Mesh(g, m);
-    this.markMesh.rotation.x = -Math.PI / 2;
-    this.markMesh.position.y = 0.012;
+    this.markMesh = new THREE.Mesh(geo, mat);
+    this.markMesh.renderOrder = 999;  // draw last so it appears on top
     this.markMesh.visible = false;
+    // y position is set in syncMarks so the shaft base sits on the floor
     this.scene.add(this.markMesh);
   }
 
@@ -536,7 +544,11 @@ export class Renderer {
   syncMarks(grid) {
     if (grid.mark) {
       const p = gridToWorld(grid.mark.x, grid.mark.z);
-      this.markMesh.position.set(p.x, 0.012, p.z);
+      // Cylinder height is 5; centering at y=2.5 puts the base on the floor.
+      this.markMesh.position.set(p.x, 2.5, p.z);
+      // Gentle breathing pulse so the shaft reads as alive even when idle.
+      const t = performance.now() / 1000;
+      this.markMesh.material.opacity = 0.35 + 0.15 * (0.5 + 0.5 * Math.sin(t * 3));
       this.markMesh.visible = true;
     } else {
       this.markMesh.visible = false;
