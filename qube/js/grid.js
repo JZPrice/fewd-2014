@@ -1,12 +1,18 @@
-import { GRID_W, GRID_D } from "./config.js?v=64";
+import { GRID_W, GRID_D } from "./config.js?v=65";
 
 export class Grid {
-  constructor() {
-    this.w = GRID_W;
-    this.d = GRID_D;
+  constructor(w, d) {
+    this.w = w ?? GRID_W;
+    this.d = d ?? GRID_D;
     this.tiles = [];
     this.mark = null;
     this.bombs = [];
+    this.reset();
+  }
+
+  resize(w, d) {
+    this.w = w;
+    this.d = d;
     this.reset();
   }
 

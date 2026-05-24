@@ -3,11 +3,14 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
+import { STAGES } from "./stages.js?v=65";
+
 export class Debugger {
   constructor(game) {
     this.game = game;
     this.visible = false;
     this._build();
+    this._buildJumpGrid();
     this._wire();
   }
 
@@ -132,6 +135,11 @@ export class Debugger {
           </div>
         </div>
 
+        <div class="dbg-section" data-sec="jump">
+          <button class="dbg-section-head">Jump to stage / wave</button>
+          <div class="dbg-section-body" id="dbg-jump-grid"></div>
+        </div>
+
       </div>
     `;
     panel.style.display = "none";
@@ -149,11 +157,32 @@ export class Debugger {
         return;
       }
       const act = e.target?.dataset?.act;
-      if (act) this._do(act);
+      if (act) this._do(act, e.target);
     });
     window.addEventListener("keydown", (e) => {
       if (e.key === "`" || e.key === "~") this.setVisible(!this.visible);
     });
+  }
+
+  // One row per stage, one button per wave. Labels show "S{n} W{m}" so the
+  // mapping is obvious even when stage IDs and indexes don't line up.
+  _buildJumpGrid() {
+    const host = document.getElementById("dbg-jump-grid");
+    if (!host) return;
+    for (let si = 0; si < STAGES.length; si++) {
+      const stage = STAGES[si];
+      const row = document.createElement("div");
+      row.className = "dbg-row";
+      for (let wi = 0; wi < stage.waves.length; wi++) {
+        const b = document.createElement("button");
+        b.dataset.act = "jump";
+        b.dataset.stage = String(si);
+        b.dataset.wave = String(wi);
+        b.textContent = `S${stage.id} W${wi + 1}`;
+        row.appendChild(b);
+      }
+      host.appendChild(row);
+    }
   }
 
   setVisible(v) {
@@ -162,10 +191,16 @@ export class Debugger {
     this.toggle.classList.toggle("on", v);
   }
 
-  _do(act) {
+  _do(act, target) {
     const g = this.game;
     const s = g.stage;
     if (act === "close") { this.setVisible(false); return; }
+    if (act === "jump") {
+      const si = parseInt(target?.dataset?.stage ?? "", 10);
+      const wi = parseInt(target?.dataset?.wave ?? "", 10);
+      if (!Number.isNaN(si) && !Number.isNaN(wi)) g.jumpTo(si, wi);
+      return;
+    }
     if (!s && act !== "restart") return;
     switch (act) {
       case "tick++": s.tickMs += 100; break;

@@ -1,4 +1,4 @@
-import { GRID_W } from "./config.js?v=64";
+import { GRID_W } from "./config.js?v=65";
 
 // Continuous-position player. Position is stored as float grid coords
 // (gx, gz) and advanced each frame by a real velocity. tx / tz are the
@@ -16,8 +16,10 @@ export class Player {
     this.fallT0 = 0;
   }
 
-  reset() {
-    this.gx = Math.floor(GRID_W / 2);
+  // gridW lets the player spawn centered on the stage's actual width
+  // (4-wide / 5-wide / 6-wide stages all spawn the player middle).
+  reset(gridW = GRID_W) {
+    this.gx = Math.floor(gridW / 2);
     this.gz = 0;
     this.vx = 0;
     this.vz = 0;

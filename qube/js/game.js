@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=64";
-import { Player } from "./player.js?v=64";
-import { Stage } from "./stage.js?v=64";
-import { STAGES } from "./stages.js?v=64";
-import { GRID_W, GRID_D } from "./config.js?v=64";
+import { Grid } from "./grid.js?v=65";
+import { Player } from "./player.js?v=65";
+import { Stage } from "./stage.js?v=65";
+import { STAGES } from "./stages.js?v=65";
+import { GRID_W, GRID_D } from "./config.js?v=65";
 
 const STATE = {
   TITLE: "title",
@@ -65,10 +65,16 @@ export class Game {
 
   _beginStage(now) {
     const def = STAGES[this.stageIndex];
+    const gw = def.gridW ?? GRID_W;
+    const gd = def.gridD ?? GRID_D;
     this.stage = new Stage(def);
     this.stage.waveIndex = 0;
-    this.grid.reset();
-    this.player.reset();
+    // Reconfigure renderer floor/underbody for this stage's dims BEFORE the
+    // grid/player reset so any helpers that read from the renderer pick up
+    // the new centering.
+    this.renderer.setStageDimensions?.(gw, gd);
+    this.grid.resize(gw, gd);
+    this.player.reset(gw);
     this.renderer.clearAllCubes();
     this.renderer.resetFollow?.(this.player);
     this.stage.startWave(now);
@@ -78,6 +84,34 @@ export class Game {
     this.hud.setCubes(this.stage.remainingCubes());
     this.hud.setBombs(0);
     this.hud.flash(`STAGE ${def.id}`, 1000);
+  }
+
+  // Debug-only: jump straight to a (stageIndex, waveIndex). Resets the
+  // grid/player and clears any in-flight cubes/bombs/marks before starting
+  // the requested wave fresh.
+  jumpTo(stageIndex, waveIndex) {
+    if (stageIndex < 0 || stageIndex >= STAGES.length) return;
+    const def = STAGES[stageIndex];
+    if (waveIndex < 0 || waveIndex >= def.waves.length) return;
+    this.stageIndex = stageIndex;
+    const now = performance.now();
+    const gw = def.gridW ?? GRID_W;
+    const gd = def.gridD ?? GRID_D;
+    this.stage = new Stage(def);
+    this.stage.waveIndex = waveIndex;
+    this.renderer.setStageDimensions?.(gw, gd);
+    this.grid.resize(gw, gd);
+    this.player.reset(gw);
+    this.renderer.clearAllCubes();
+    this.renderer.resetFollow?.(this.player);
+    this.stage.startWave(now);
+    this.state = STATE.PLAYING;
+    this.hud.hideGameOver();
+    this.hud.setStage(def.id);
+    this.hud.setWave(this.stage.waveIndex + 1);
+    this.hud.setCubes(this.stage.remainingCubes());
+    this.hud.setBombs(0);
+    this.hud.flash(`STAGE ${def.id} - WAVE ${waveIndex + 1}`, 900);
   }
 
   _beginNextWave(now) {
@@ -255,9 +289,9 @@ export class Game {
   // - surface tile + every underbody block in that column.
   _dropFrontRow() {
     const front = this.stage.frontEdge(this.grid);
-    if (front >= GRID_D) return;
+    if (front >= this.grid.d) return;
     let removed = 0;
-    for (let x = 0; x < GRID_W; x++) {
+    for (let x = 0; x < this.grid.w; x++) {
       if (this.grid.hasTile(x, front)) {
         this.grid.removeTile(x, front);
         removed++;

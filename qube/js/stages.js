@@ -2,36 +2,49 @@
 // Each layout: array of strings, one per row. First string = furthest back
 // (spawns last), last string = closest to player (spawns first into view).
 // Columns: left -> right. Chars: N normal, F forbidden, A advantage.
-// Every cell is filled - no gaps. Width must equal GRID_W (4).
+// Every cell is filled - no gaps. Width must equal the stage's gridW.
 
 export const STAGES = [
   {
     id: 1,
     tickMs: 2000,
     rollMs: 1000,
+    gridW: 4,
+    gridD: 16,
     waves: [
       {
         layout: [
           "NNNN",
           "NNNN",
+          "NNAN",
+          "NNNN",
+        ],
+      },
+      {
+        layout: [
+          "NNNN",
+          "NFNN",
           "NNNN",
           "NNAN",
+          "NNNN",
         ],
       },
       {
         layout: [
           "NNNN",
           "FNNN",
-          "NNNN",
-          "NNNN",
           "NNAN",
+          "NNNN",
+          "NNNF",
+          "NNNN",
         ],
       },
       {
         layout: [
           "NNNN",
           "FNNF",
-          "NNNN",
+          "NNAN",
+          "NNFN",
           "NNNN",
           "NANN",
           "NNNF",
@@ -44,28 +57,53 @@ export const STAGES = [
     id: 2,
     tickMs: 1600,
     rollMs: 800,
+    gridW: 5,
+    gridD: 20,
     waves: [
       {
         layout: [
-          "NNFN",
-          "NNNN",
-          "NFNN",
-          "NNNA",
-          "NNNN",
-          "NNNF",
-          "ANNN",
+          "NNNNN",
+          "NFNNN",
+          "NNNAN",
+          "NNNNN",
+          "NNFNN",
+          "NANNN",
         ],
       },
       {
         layout: [
-          "NFNF",
-          "NNNN",
-          "NNNN",
-          "FNAF",
-          "NNNN",
-          "NFNN",
-          "NNAN",
-          "FNNF",
+          "NNFNN",
+          "NNNNN",
+          "NFNAN",
+          "NNNNN",
+          "NNNFN",
+          "NANNN",
+          "NNANN",
+        ],
+      },
+      {
+        layout: [
+          "NFNFN",
+          "NNNNN",
+          "FNANF",
+          "NNNNN",
+          "NFNFN",
+          "NANAN",
+          "NNFNN",
+          "NNNNN",
+        ],
+      },
+      {
+        layout: [
+          "NFNFN",
+          "ANNNA",
+          "FNNNF",
+          "NNANN",
+          "NFNFN",
+          "NNNAN",
+          "FNFNF",
+          "NANNN",
+          "NNNNN",
         ],
       },
     ],
@@ -74,18 +112,54 @@ export const STAGES = [
     id: 3,
     tickMs: 1200,
     rollMs: 600,
+    gridW: 6,
+    gridD: 24,
     waves: [
       {
         layout: [
-          "NFNF",
-          "FNFN",
-          "NNAN",
-          "NNNN",
-          "NFNF",
-          "NANN",
-          "FNNN",
-          "NNFA",
-          "NNNF",
+          "NNNNNN",
+          "NFNNAN",
+          "NNNNFN",
+          "ANNNAN",
+          "NNFNNN",
+          "NNNANN",
+        ],
+      },
+      {
+        layout: [
+          "NFNNFN",
+          "NNANNN",
+          "FNNNAF",
+          "NNNANN",
+          "NFNFNN",
+          "NNANFA",
+          "FNNFNN",
+        ],
+      },
+      {
+        layout: [
+          "NFNFNF",
+          "NNANNN",
+          "FNNNAF",
+          "NNNNFN",
+          "NFNANF",
+          "NNNANN",
+          "FNFNFA",
+          "NNNANN",
+        ],
+      },
+      {
+        layout: [
+          "NFNFNF",
+          "ANNANN",
+          "FNFNFA",
+          "NNNANN",
+          "NFNFNF",
+          "NNANNA",
+          "FNFNFN",
+          "NANNAN",
+          "NFNFNF",
+          "NNANNN",
         ],
       },
     ],
