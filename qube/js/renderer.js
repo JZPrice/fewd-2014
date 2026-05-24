@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=93";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=94";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -757,7 +757,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=93", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=94", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -825,67 +825,59 @@ export class Renderer {
     mesh.rotation.y = t * Math.PI * 0.8;
   }
 
-  // Bomb-placement hint: when a green cube is captured and a real bomb
-  // takes its place, flash 9 ghost bombs across the 3x3 it covers so
-  // the player sees the blast zone, then fade them out leaving only
-  // the real tetrahedron behind.
-  spawnBombAreaGhost(cx, cz) {
-    if (!this._markGhostBase) return;
-    if (this._bombAreaGhost) {
-      for (const m of this._bombAreaGhost.meshes) this.scene.remove(m);
+  // Bomb-placement hint: pulse a transparent red aura around the cubes
+  // sitting inside the new bomb's 3x3 zone so the player sees what's
+  // queued for the blast. Each aura is parented to the target cube's
+  // pivot so it tracks the cube's roll. Auto-removed when the pulse
+  // ends. Pass an array of cube IDs that were inside the zone at the
+  // moment of placement.
+  spawnBombAuraOnCubes(cubeIds) {
+    if (!cubeIds || cubeIds.length === 0) return;
+    if (!this._bombAuraGeom) {
+      this._bombAuraGeom = new THREE.BoxGeometry(TILE * 1.12, TILE * 1.12, TILE * 1.12);
     }
-    const meshes = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const x = cx + dx;
-        const z = cz + dz;
-        if (x < 0 || x >= this._stageW || z < 0 || z >= this._stageD) continue;
-        const mesh = this._markGhostBase.clone(true);
-        mesh.traverse((o) => {
-          if (o.isMesh) {
-            o.material = o.material.clone();
-            o.material.transparent = true;
-            o.material.depthWrite = false;
-            o.material.opacity = 0;
-            o.castShadow = false;
-            if (o.material.name === "Black" && o.material.color) {
-              o.material.color = new THREE.Color(0xe8eef8);
-              if (o.material.emissive) o.material.emissive = new THREE.Color(0xa8c0e0);
-              o.material.emissiveIntensity = 0.25;
-            }
-          }
-        });
-        const p = this._toWorld(x, z);
-        mesh.position.set(p.x, 0.45, p.z);
-        mesh.scale.setScalar(0.45);
-        mesh.userData.phase = Math.random() * Math.PI * 2;
-        this.scene.add(mesh);
-        meshes.push(mesh);
-      }
+    this._bombAuras ??= [];
+    for (const id of cubeIds) {
+      const entry = this.cubeMeshes.get(id);
+      if (!entry) continue;
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xff3030,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const aura = new THREE.Mesh(this._bombAuraGeom, mat);
+      // Match the cube mesh's offset within the pivot so the aura sits
+      // around the cube body, not the pivot edge.
+      aura.position.set(0, 0.5, -0.5);
+      entry.pivot.add(aura);
+      this._bombAuras.push({
+        aura, pivot: entry.pivot,
+        t0: performance.now(), duration: 800,
+      });
     }
-    if (meshes.length === 0) return;
-    this._bombAreaGhost = { meshes, t0: performance.now(), duration: 1400 };
   }
 
-  _animateBombAreaGhost() {
-    if (!this._bombAreaGhost) return;
-    const { meshes, t0, duration } = this._bombAreaGhost;
-    const t = (performance.now() - t0) / duration;
-    if (t >= 1) {
-      for (const m of meshes) this.scene.remove(m);
-      this._bombAreaGhost = null;
-      return;
-    }
-    const PEAK = 0.45;
-    let alpha;
-    if (t < 0.10)      alpha = (t / 0.10) * PEAK;
-    else if (t < 0.40) alpha = PEAK;
-    else               alpha = PEAK * (1 - (t - 0.40) / 0.60);
-    for (let i = 0; i < meshes.length; i++) {
-      const m = meshes[i];
-      m.traverse((o) => { if (o.isMesh) o.material.opacity = alpha; });
-      m.position.y = 0.45 + Math.sin(t * Math.PI * 2 + m.userData.phase) * 0.06;
-      m.rotation.y = m.userData.phase + t * Math.PI * 0.8;
+  _animateBombAuras() {
+    if (!this._bombAuras || this._bombAuras.length === 0) return;
+    const now = performance.now();
+    for (let i = this._bombAuras.length - 1; i >= 0; i--) {
+      const a = this._bombAuras[i];
+      const t = (now - a.t0) / a.duration;
+      if (t >= 1) {
+        a.pivot.remove(a.aura);
+        a.aura.material.dispose();
+        this._bombAuras.splice(i, 1);
+        continue;
+      }
+      // Quick rise, hold at peak, fade out.
+      const PEAK = 0.55;
+      let alpha;
+      if (t < 0.15)      alpha = (t / 0.15) * PEAK;
+      else if (t < 0.50) alpha = PEAK;
+      else               alpha = PEAK * (1 - (t - 0.50) / 0.50);
+      a.aura.material.opacity = alpha;
     }
   }
 
@@ -1317,7 +1309,7 @@ export class Renderer {
   step(dt) {
     this._animateFloorDrops(dt);
     this._animateMarkGhost();
-    this._animateBombAreaGhost();
+    this._animateBombAuras();
     if (this._mixer) this._mixer.update(dt);
     this._animateAbyssParticles(dt);
   }
