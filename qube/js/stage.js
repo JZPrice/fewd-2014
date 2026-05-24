@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=64";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=64";
+import { Cube } from "./cube.js?v=65";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=65";
 
 export class Stage {
   constructor(stageDef) {
@@ -11,6 +11,8 @@ export class Stage {
     this.floorLost = false;
     this.tickMs = stageDef.tickMs;
     this.rollMs = stageDef.rollMs ?? Math.min(stageDef.tickMs - 200, 1000);
+    this.gridW = stageDef.gridW ?? GRID_W;
+    this.gridD = stageDef.gridD ?? GRID_D;
     this.nextTickAt = 0;
     this.pendingRowDrop = 0;
     this.forbiddenFellOff = 0;
@@ -30,14 +32,14 @@ export class Stage {
     const rows = layout.length;
     // First entry of layout = furthest back (last to arrive).
     // Last entry of layout = closest to player (first to arrive).
-    // Layout row (rows - 1 - i) sits at gz = GRID_D - 1 + i.
+    // Layout row (rows - 1 - i) sits at gz = this.gridD - 1 + i.
     for (let i = 0; i < rows; i++) {
       const rowStr = layout[rows - 1 - i];
-      for (let x = 0; x < GRID_W && x < rowStr.length; x++) {
+      for (let x = 0; x < this.gridW && x < rowStr.length; x++) {
         const ch = rowStr[x];
         if (ch === "." || ch === " ") continue;
         if (ch !== CUBE_TYPE.NORMAL && ch !== CUBE_TYPE.FORBIDDEN && ch !== CUBE_TYPE.ADVANTAGE) continue;
-        this.cubes.push(new Cube(ch, x, GRID_D - 1 + i));
+        this.cubes.push(new Cube(ch, x, this.gridD - 1 + i));
       }
     }
     this.totalCubes = this.cubes.length;
@@ -76,12 +78,12 @@ export class Stage {
 
   // Lowest gz with any remaining tile - the platform's current front edge.
   frontEdge(grid) {
-    for (let z = 0; z < GRID_D; z++) {
-      for (let x = 0; x < GRID_W; x++) {
+    for (let z = 0; z < this.gridD; z++) {
+      for (let x = 0; x < this.gridW; x++) {
         if (grid.tiles[x][z]) return z;
       }
     }
-    return GRID_D;
+    return this.gridD;
   }
 
   // Resolve a tick: advance every cube one row toward the player.
@@ -103,9 +105,9 @@ export class Stage {
       const toZ = cube.gz - 1;
 
       // Still off-screen behind the back row: just slide forward, no checks.
-      if (fromZ >= GRID_D) {
+      if (fromZ >= this.gridD) {
         cube.gz = toZ;
-        if (toZ < GRID_D) cube.startRoll(fromZ, toZ, now, this.rollMs / this.speedMultiplier);
+        if (toZ < this.gridD) cube.startRoll(fromZ, toZ, now, this.rollMs / this.speedMultiplier);
         continue;
       }
 
@@ -120,8 +122,8 @@ export class Stage {
         } else {
           // Normal: take the current front row with it. Player on that row
           // goes too; player further back is safe.
-          if (front < GRID_D) {
-            for (let x = 0; x < GRID_W; x++) grid.tiles[x][front] = false;
+          if (front < this.gridD) {
+            for (let x = 0; x < this.gridW; x++) grid.tiles[x][front] = false;
             events.rowsDropped++;
             this.floorLost = true;
             if (player.tz === front) events.takenWithRow = true;

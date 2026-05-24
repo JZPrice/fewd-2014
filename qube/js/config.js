@@ -1,5 +1,10 @@
 export const GRID_W = 4;
 export const GRID_D = 16;
+// Largest grid any stage uses. The renderer pre-allocates floor/underbody
+// instances for MAX_GRID_W * MAX_GRID_D and hides tiles outside the
+// current stage's actual gridW / gridD.
+export const MAX_GRID_W = 6;
+export const MAX_GRID_D = 24;
 export const TILE = 1;
 
 // Slide and cooldown match so each step blends into the next - no pause

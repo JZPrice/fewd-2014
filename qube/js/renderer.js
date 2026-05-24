@@ -1,14 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=64";
-
-export function gridToWorld(gx, gz) {
-  return {
-    x: (gx - (GRID_W - 1) / 2) * TILE,
-    z: -gz * TILE,
-  };
-}
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=65";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -97,6 +90,12 @@ export class Renderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+    // Current stage's grid dimensions. The renderer pre-allocates floor and
+    // underbody instances for the MAX dims, then setStageDimensions hides
+    // tiles outside the active stage's actual gridW / gridD.
+    this._stageW = GRID_W;
+    this._stageD = GRID_D;
+
     this._lookZ = -(GRID_D - 1) / 2;
     this._baseCamY = 5.8;
     this._baseCamZ = 5.8;
@@ -153,6 +152,10 @@ export class Renderer {
     this._shakeAmp = 0;
     this._lastShake = null;
 
+    // Hide MAX-allocated tiles that aren't part of the default stage so the
+    // title screen shows a clean 4-wide platform, not the 6-wide max.
+    this.setStageDimensions(GRID_W, GRID_D);
+
     this.onResize();
     window.addEventListener("resize", () => this.onResize());
   }
@@ -187,11 +190,69 @@ export class Renderer {
   // Snap the follow camera state to the player. Use at stage start / death
   // so the camera doesn't lerp across the playfield on respawn.
   resetFollow(player) {
-    const target = gridToWorld(player.gx, player.gz);
+    const target = this._toWorld(player.gx, player.gz);
     this._camPosX = target.x;  this._camVelX = 0;
     this._camPosZ = target.z;  this._camVelZ = 0;
     this._lookPosX = target.x; this._lookVelX = 0;
     this._lookPosZ = target.z - 1.5; this._lookVelZ = 0;
+  }
+
+  // World position for a grid coordinate using the current stage's width
+  // for centering. Wider stages push the leftmost column further left.
+  _toWorld(gx, gz) {
+    return {
+      x: (gx - (this._stageW - 1) / 2) * TILE,
+      z: -gz * TILE,
+    };
+  }
+
+  // Re-center the floor/underbody for a new stage. Tiles outside the new
+  // bounds are hidden; tiles inside are repositioned (their X center depends
+  // on the stage's width) and snapped back to rest. Call before grid.reset()
+  // / player.reset() on stage transition.
+  setStageDimensions(w, d) {
+    this._stageW = w;
+    this._stageD = d;
+    this._lookZ = -(d - 1) / 2;
+
+    // Floor tiles.
+    for (let x = 0; x < MAX_GRID_W; x++) {
+      for (let z = 0; z < MAX_GRID_D; z++) {
+        const m = this.floorMeshes[x][z];
+        if (x < w && z < d) {
+          const p = this._toWorld(x, z);
+          m.position.set(p.x, m.userData.restY, p.z);
+          m.rotation.set(0, 0, 0);
+          m.userData.targetY = m.userData.restY;
+          m.userData.vy = 0;
+          m.userData.dropping = false;
+          m.userData.dropDelay = 0;
+          m.userData.fallNotified = false;
+          m.visible = true;
+        } else {
+          m.visible = false;
+        }
+      }
+    }
+
+    // Underbody columns.
+    for (let x = 0; x < MAX_GRID_W; x++) {
+      for (let z = 0; z < MAX_GRID_D; z++) {
+        const col = this._underbodyDrop[x][z];
+        col.y = 0; col.vy = 0; col.dropping = false; col.dropDelay = 0; col.hidden = false;
+        if (x < w && z < d) {
+          for (let layer = 0; layer < this._underbodyLayers; layer++) {
+            this._setUnderbodyInstance(x, z, layer, 0);
+          }
+        } else {
+          this._hideUnderbodyColumn(x, z);
+          col.hidden = true;
+        }
+      }
+    }
+    for (let layer = 0; layer < this._underbodyLayers; layer++) {
+      this._underbodyMeshes[layer].instanceMatrix.needsUpdate = true;
+    }
   }
 
   _buildLights() {
@@ -212,14 +273,15 @@ export class Renderer {
   }
 
   _buildPlatformBody() {
-    // One InstancedMesh per Y-layer, each with GRID_W*GRID_D = 48 instances.
+    // One InstancedMesh per Y-layer, each with MAX_GRID_W*MAX_GRID_D instances.
     // We split because iOS Safari appears to silently truncate large single-
     // mesh instance buffers, dropping the deeper instances of a 1700+ mesh.
-    // 48 instances per mesh is well within any known limit. Per layer the
-    // instance index is x * GRID_D + z, so a single column maps to that
-    // same instance index across all `_underbodyMeshes[layer]` meshes.
+    // Per layer the instance index is x * MAX_GRID_D + z, so a single
+    // column maps to that same instance index across all
+    // `_underbodyMeshes[layer]` meshes. Tiles outside the current stage's
+    // gridW/gridD are hidden by setStageDimensions.
     const LAYERS = 7;
-    const PER_LAYER = GRID_W * GRID_D;
+    const PER_LAYER = MAX_GRID_W * MAX_GRID_D;
     const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
@@ -233,12 +295,12 @@ export class Renderer {
       inst.castShadow = false;
       inst.receiveShadow = true;
       inst.frustumCulled = false;
-      for (let x = 0; x < GRID_W; x++) {
-        for (let z = 0; z < GRID_D; z++) {
-          const p = gridToWorld(x, z);
+      for (let x = 0; x < MAX_GRID_W; x++) {
+        for (let z = 0; z < MAX_GRID_D; z++) {
+          const p = this._toWorld(x, z);
           dummy.position.set(p.x, y, p.z);
           dummy.updateMatrix();
-          inst.setMatrixAt(x * GRID_D + z, dummy.matrix);
+          inst.setMatrixAt(x * MAX_GRID_D + z, dummy.matrix);
         }
       }
       inst.instanceMatrix.needsUpdate = true;
@@ -251,9 +313,9 @@ export class Renderer {
     // rest, negative while falling). dropDelay staggers the front row
     // so it topples L->R rather than dropping as a slab.
     this._underbodyDrop = [];
-    for (let x = 0; x < GRID_W; x++) {
+    for (let x = 0; x < MAX_GRID_W; x++) {
       this._underbodyDrop[x] = [];
-      for (let z = 0; z < GRID_D; z++) {
+      for (let z = 0; z < MAX_GRID_D; z++) {
         this._underbodyDrop[x][z] = { y: 0, vy: 0, dropping: false, dropDelay: 0, hidden: false };
       }
     }
@@ -263,13 +325,13 @@ export class Renderer {
   // a vertical slide offset. Called per-layer during column drop animation.
   _setUnderbodyInstance(x, z, layer, ySlide) {
     const baseY = -TILE / 2 - (layer + 1) * TILE;
-    const p = gridToWorld(x, z);
+    const p = this._toWorld(x, z);
     const d = this._underbodyDummy;
     d.position.set(p.x, baseY + ySlide, p.z);
     d.rotation.set(0, 0, 0);
     d.scale.set(1, 1, 1);
     d.updateMatrix();
-    this._underbodyMeshes[layer].setMatrixAt(x * GRID_D + z, d.matrix);
+    this._underbodyMeshes[layer].setMatrixAt(x * MAX_GRID_D + z, d.matrix);
   }
 
   _hideUnderbodyColumn(x, z) {
@@ -278,7 +340,7 @@ export class Renderer {
     d.position.set(0, -1000, 0);
     d.rotation.set(0, 0, 0);
     d.updateMatrix();
-    const idx = x * GRID_D + z;
+    const idx = x * MAX_GRID_D + z;
     for (let layer = 0; layer < this._underbodyLayers; layer++) {
       this._underbodyMeshes[layer].setMatrixAt(idx, d.matrix);
     }
@@ -358,15 +420,17 @@ export class Renderer {
     this.floorMeshes = [];
     // Floor tiles are now full unit cubes matching the underbody blocks.
     // Center at y=-0.5, so the top face is at y=0 (where the player walks).
+    // Allocated for MAX dims; setStageDimensions hides tiles outside the
+    // active stage's bounds and repositions visible ones.
     const geo = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
     const REST_Y = -TILE / 2;
-    for (let x = 0; x < GRID_W; x++) {
+    for (let x = 0; x < MAX_GRID_W; x++) {
       this.floorMeshes[x] = [];
-      for (let z = 0; z < GRID_D; z++) {
+      for (let z = 0; z < MAX_GRID_D; z++) {
         const m = new THREE.Mesh(geo, mat);
-        const p = gridToWorld(x, z);
+        const p = this._toWorld(x, z);
         m.position.set(p.x, REST_Y, p.z);
         m.receiveShadow = true;
         m.castShadow = false;
@@ -672,7 +736,7 @@ export class Renderer {
       const slot = this._bombPool[i];
       if (i < bombs.length) {
         const b = bombs[i];
-        const p = gridToWorld(b.cx, b.cz);
+        const p = this._toWorld(b.cx, b.cz);
         slot.group.position.set(p.x, 0, p.z);
         // Floating bob + rotation
         const t = now / 1000;
@@ -713,8 +777,8 @@ export class Renderer {
   }
 
   syncFloor(grid) {
-    for (let x = 0; x < GRID_W; x++) {
-      for (let z = 0; z < GRID_D; z++) {
+    for (let x = 0; x < this._stageW; x++) {
+      for (let z = 0; z < this._stageD; z++) {
         const mesh = this.floorMeshes[x][z];
         const exists = grid.tiles[x][z];
         const ud = mesh.userData;
@@ -760,8 +824,8 @@ export class Renderer {
     const G = 28;            // gravity for dropping tiles
     const TILT_RATE = 4.0;   // radians/sec forward tilt
     const MAX_TILT = Math.PI * 0.55;
-    for (let x = 0; x < GRID_W; x++) {
-      for (let z = 0; z < GRID_D; z++) {
+    for (let x = 0; x < this._stageW; x++) {
+      for (let z = 0; z < this._stageD; z++) {
         const m = this.floorMeshes[x][z];
         const ud = m.userData;
         if (ud.dropping) {
@@ -810,8 +874,8 @@ export class Renderer {
     // surface tile, but moves all 18 instances of its (x,z) column as
     // a single rigid block so the platform reads as one chunk shearing off.
     let underbodyDirty = false;
-    for (let x = 0; x < GRID_W; x++) {
-      for (let z = 0; z < GRID_D; z++) {
+    for (let x = 0; x < this._stageW; x++) {
+      for (let z = 0; z < this._stageD; z++) {
         const col = this._underbodyDrop[x][z];
         if (!col.dropping) continue;
         if (col.hidden) continue;
@@ -850,7 +914,7 @@ export class Renderer {
         // downward in Y, rolling well past the 90 degree tip so it looks
         // like it's plummeting.
         const u = cube.fallOffProgress(now);
-        const fromP = gridToWorld(cube.gx, cube.gz);
+        const fromP = this._toWorld(cube.gx, cube.gz);
         pivot.position.set(
           fromP.x,
           -u * u * 7,                  // quadratic (gravity-ish) drop
@@ -862,11 +926,11 @@ export class Renderer {
         const u = cube.rollProgress(now);
         // Cubes roll toward the player (+Z in world). Pivot sits at the leading
         // (+Z) edge of the source tile so the cube tips forward.
-        const sourceP = gridToWorld(cube.gx, cube.roll.fromZ);
+        const sourceP = this._toWorld(cube.gx, cube.roll.fromZ);
         pivot.position.set(sourceP.x, 0, sourceP.z + TILE / 2);
         pivot.rotation.x = u * Math.PI / 2;
       } else {
-        const p = gridToWorld(cube.gx, cube.gz);
+        const p = this._toWorld(cube.gx, cube.gz);
         pivot.position.set(p.x, 0, p.z + TILE / 2);
         pivot.rotation.x = 0;
         mesh.position.set(0, 0.5, -0.5);
@@ -880,7 +944,7 @@ export class Renderer {
 
   syncPlayer(player, now) {
     // Continuous-position: render directly from the player's float coords.
-    const p = gridToWorld(player.gx, player.gz);
+    const p = this._toWorld(player.gx, player.gz);
     let y = 0;
     if (player.falling) {
       const fu = Math.min(1, (now - player.fallT0) / 800);
@@ -953,7 +1017,7 @@ export class Renderer {
       return;
     }
 
-    const p = gridToWorld(mx, mz);
+    const p = this._toWorld(mx, mz);
     const h = this._markHeight;
     const data = this._markParticleData;
     const pos = data.positions;
@@ -1001,7 +1065,7 @@ export class Renderer {
   }
 
   updateCamera(player, dt) {
-    const target = gridToWorld(player.gx, player.gz);
+    const target = this._toWorld(player.gx, player.gz);
     const halflife = this.followHalflife;
 
     // Critically-damped spring on follow position (x, z) and the lookAt mix.
