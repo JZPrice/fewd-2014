@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=53";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=54";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -90,7 +90,7 @@ export class Renderer {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(COLORS.ground);
-    this.scene.fog = new THREE.Fog(COLORS.ground, 14, 38);
+    this.scene.fog = new THREE.Fog(COLORS.ground, 18, 70);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -216,8 +216,8 @@ export class Renderer {
     // the floor tiles above. InstancedMesh keeps it to a single draw call.
     // Instance ordering below is column-major-by-layer:
     // index = layer * (GRID_W * GRID_D) + x * GRID_D + z, so we can step
-    // through all 18 instances of a single (x,z) column when it drops.
-    const LAYERS = 18;
+    // through all layers of a single (x,z) column when it drops.
+    const LAYERS = 36;
     const COUNT = GRID_W * GRID_D * LAYERS;
     const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
@@ -344,7 +344,7 @@ export class Renderer {
     const geo = new THREE.PlaneGeometry(300, 300, 1, 1);
     const plane = new THREE.Mesh(geo, mat);
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -25;
+    plane.position.y = -44;
     this._lavaBg = plane;
     this.scene.add(plane);
   }
@@ -736,7 +736,7 @@ export class Renderer {
           // First frame this tile is removed - queue a staggered fall so
           // the row topples block-by-block L->R, and aim well below the
           // 18-layer underbody so it visibly plummets past the platform.
-          ud.targetY = ud.restY - 50;
+          ud.targetY = ud.restY - 60;
           ud.vy = 0;
           ud.dropping = true;
           ud.dropDelay = 0.09 * x;
@@ -774,7 +774,7 @@ export class Renderer {
           }
           // Hide only after the block has fallen clear of the underbody
           // (~18 units below rest). Anything earlier looks like it pops out.
-          if (m.position.y < ud.restY - 22) {
+          if (m.position.y < ud.restY - 44) {
             m.visible = false;
           }
         } else {
@@ -807,7 +807,7 @@ export class Renderer {
         }
         col.vy -= G * dt;
         col.y += col.vy * dt;
-        if (col.y < -28) {
+        if (col.y < -52) {
           // Past the bottom of the visible underbody - collapse to scale 0.
           this._hideUnderbodyColumn(x, z);
           col.hidden = true;
