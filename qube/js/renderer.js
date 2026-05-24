@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=96";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=97";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -757,7 +757,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=96", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=97", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -881,7 +881,10 @@ export class Renderer {
     // Pool of up to N bomb visuals — each is a floating tetrahedron above its
     // tile plus a 3x3 ring of subtle red tile overlays showing the blast area.
     this._bombPool = [];
-    this._bombGeom = new THREE.TetrahedronGeometry(0.32);
+    // Upside-down square pyramid: 4-segment cone flipped 180 so the tip
+    // points down at the bomb's tile.
+    this._bombGeom = new THREE.ConeGeometry(0.34, 0.62, 4);
+    this._bombGeom.rotateX(Math.PI);
     this._bombMat = new THREE.MeshLambertMaterial({
       color: COLORS.bomb,
       emissive: COLORS.bombAccent,
