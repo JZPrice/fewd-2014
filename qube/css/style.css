@@ -375,6 +375,12 @@ body.touch #touch-controls {
     0 2px 0 rgba(0, 0, 0, 0.55),
     inset 0 -2px 0 rgba(0, 0, 0, 0.10);
 }
+.act-mark-fire .mf-bomb {
+  width: 80%; height: 80%;
+  display: block;
+  background: transparent;
+  pointer-events: none;
+}
 .act-mark-fire .mf-icon {
   width: 52%; height: 52%;
   transition: transform 180ms ease, color 180ms ease;
