@@ -7,6 +7,12 @@ export const MAX_GRID_W = 6;
 export const MAX_GRID_D = 64;
 export const TILE = 1;
 
+// Default inset for tile / cube / underbody geometry relative to the
+// grid cell - leaves a thin grout seam between adjacent blocks. 1.0
+// would weld them; 0.99 = ~1% gap. Renderer.setGroutInset() lets the
+// debug panel retune it at runtime.
+export const GROUT_INSET = 0.99;
+
 // Slide and cooldown match so each step blends into the next - no pause
 // between tile transitions while a direction is held.
 export const MOVE_COOLDOWN_MS = 220;
