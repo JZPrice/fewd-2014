@@ -296,13 +296,17 @@ body.touch #touch-controls {
   height: 96px;
 }
 
+/* Satellite sits diagonally above-and-left of the main button. The thumb's
+   natural arc from a bottom-right rest sweeps up-and-left, so this is the
+   shortest reach without leaving the comfortable thumb cone. */
 .actions .act-bomb {
   position: absolute;
   right: 100%;
-  bottom: 0;
-  margin-right: 18px;
-  width: 76px;
-  height: 76px;
+  bottom: 100%;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  width: 72px;
+  height: 72px;
 }
 /* NES-style chunky pressable buttons: thick colored ring, hard drop shadow
    for a 3D rest, on press the button drops into the shadow. */
@@ -369,7 +373,7 @@ body.touch .touch-only { display: block; }
   .joy-stick { width: 54px; height: 54px; }
   .actions { width: 88px; height: 88px; right: max(32px, calc(env(safe-area-inset-right) + 18px)); }
   .actions .act-mark-fire { width: 88px; height: 88px; }
-  .actions .act-bomb { width: 68px; height: 68px; margin-right: 16px; bottom: 0; }
+  .actions .act-bomb { width: 64px; height: 64px; margin-right: 10px; margin-bottom: 10px; bottom: 100%; }
 }
 
 /* hide controls during title/gameover overlays */
