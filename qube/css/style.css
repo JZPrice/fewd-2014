@@ -6,7 +6,7 @@ html, body {
   overflow: hidden;
   background: #0a0a12;
   color: #e8e8f0;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   -webkit-user-select: none;
@@ -103,14 +103,12 @@ html, body {
 }
 
 .tagline {
-  font-family: "Grenze Gotisch", "Times New Roman", serif;
   color: #b8c4e0;
-  font-size: clamp(16px, 2.4vw, 22px);
+  font-size: clamp(13px, 1.8vw, 16px);
   font-weight: 400;
-  font-style: italic;
   letter-spacing: normal;
   margin-bottom: 24px;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .controls {
@@ -140,13 +138,11 @@ html, body {
   );
 }
 .char-label {
-  font-family: "Grenze Gotisch", "Times New Roman", serif;
-  font-size: 16px;
-  letter-spacing: normal;
-  color: #9aa8c8;
-  font-weight: 400;
-  font-style: italic;
-  opacity: 0.85;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a99bd;
 }
 .char-row {
   display: flex;
@@ -156,11 +152,10 @@ html, body {
   justify-content: center;
 }
 #char-name {
-  font-family: "Grenze Gotisch", "Times New Roman", serif;
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   letter-spacing: normal;
-  color: #f4e8c8;
+  color: #f0e8d8;
   min-width: 120px;
   text-align: center;
 }
