@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=57";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=58";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -138,6 +138,16 @@ export class Renderer {
     patchLambertNoise(this._forbiddenMat, { scale: 3.0, strength: 0.45, space: "local" });
     this._installEnvironment();
     this._buildLavaBackground();
+
+    // DIAGNOSTIC: bright red emissive cube floating below the platform at
+    // world y = -25 (deep in the underbody zone). If this cube is visible
+    // but the underbody is not, the InstancedMesh is the problem. If this
+    // cube is also invisible, depth rendering itself is broken.
+    const testMat = new THREE.MeshBasicMaterial({ color: 0xff2020 });
+    const testCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), testMat);
+    testCube.position.set(0, -25, 0);
+    testCube.frustumCulled = false;
+    this.scene.add(testCube);
 
     // Critically-damped spring state for the follow camera. Position is
     // tracked separately from velocity so the spring is stable for any dt.
