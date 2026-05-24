@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=36";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=37";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -294,26 +294,103 @@ export class Renderer {
   }
 
   _buildMark() {
-    // A vertical glowing shaft anchored on the marked tile. Tall enough
-    // to clearly rise above any cube sitting on the same tile. Depth
-    // test off + additive blending = always visible, always reads as
-    // "light", even through cubes.
-    const r = TILE * 0.35;
-    const h = 5;
-    const geo = new THREE.CylinderGeometry(r, r, h, 16, 1, false);
-    const mat = new THREE.MeshBasicMaterial({
-      color: COLORS.mark,
+    // Square gradient shaft + rising particles. The shaft has the cube's
+    // footprint and fades to transparent at the top via a fragment-shader
+    // gradient; the particles rise through it for a "lit dust" feel.
+    // Depth test off + additive blending = always visible through cubes.
+    const w = TILE * 0.98;            // match floor tile footprint
+    const h = 4;
+    this._markHeight = h;
+    this._markWidth = w;
+
+    const geo = new THREE.BoxGeometry(w, h, w);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor:   { value: new THREE.Color(COLORS.mark) },
+        uOpacity: { value: 0.55 },
+        uHeight:  { value: h },
+      },
+      vertexShader: `
+        varying float vYrel;
+        uniform float uHeight;
+        void main() {
+          vYrel = (position.y + uHeight * 0.5) / uHeight;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vYrel;
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        void main() {
+          float a = pow(1.0 - clamp(vYrel, 0.0, 1.0), 1.7) * uOpacity;
+          gl_FragColor = vec4(uColor, a);
+        }
+      `,
       transparent: true,
-      opacity: 0.4,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: false,
     });
     this.markMesh = new THREE.Mesh(geo, mat);
-    this.markMesh.renderOrder = 999;  // draw last so it appears on top
+    this.markMesh.renderOrder = 999;
     this.markMesh.visible = false;
-    // y position is set in syncMarks so the shaft base sits on the floor
     this.scene.add(this.markMesh);
+
+    // Rising-dust particles. Positions live in a typed array, advanced
+    // each frame in syncMarks; the shader does the per-vertex fade so
+    // particles bloom in at the bottom and dissolve as they near the top.
+    const COUNT = 36;
+    const positions = new Float32Array(COUNT * 3);
+    for (let i = 0; i < COUNT; i++) {
+      positions[i * 3]     = (Math.random() - 0.5) * w * 0.9;
+      positions[i * 3 + 1] = Math.random() * h;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * w * 0.9;
+    }
+    const pgeo = new THREE.BufferGeometry();
+    pgeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const pmat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor:  { value: new THREE.Color(COLORS.mark) },
+        uHeight: { value: h },
+        uSize:   { value: 220.0 },
+      },
+      vertexShader: `
+        varying float vYrel;
+        uniform float uHeight;
+        uniform float uSize;
+        void main() {
+          vYrel = clamp(position.y / uHeight, 0.0, 1.0);
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uSize / max(0.1, -mv.z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        varying float vYrel;
+        uniform vec3 uColor;
+        void main() {
+          vec2 c = gl_PointCoord - vec2(0.5);
+          float d = length(c);
+          if (d > 0.5) discard;
+          float soft   = 1.0 - smoothstep(0.15, 0.5, d);
+          float bornIn = smoothstep(0.0, 0.10, vYrel);
+          float fade   = 1.0 - smoothstep(0.0, 0.95, vYrel);
+          gl_FragColor = vec4(uColor + vec3(0.25) * fade, soft * bornIn * fade);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+    });
+    this.markParticles = new THREE.Points(pgeo, pmat);
+    this.markParticles.renderOrder = 1000;
+    this.markParticles.visible = false;
+    this.scene.add(this.markParticles);
+
+    this._markParticleData = { positions, count: COUNT, w, h };
+    this._markLastTime = performance.now();
   }
 
   _buildBombs() {
@@ -542,17 +619,42 @@ export class Renderer {
   }
 
   syncMarks(grid) {
-    if (grid.mark) {
-      const p = gridToWorld(grid.mark.x, grid.mark.z);
-      // Cylinder height is 5; centering at y=2.5 puts the base on the floor.
-      this.markMesh.position.set(p.x, 2.5, p.z);
-      // Gentle breathing pulse so the shaft reads as alive even when idle.
-      const t = performance.now() / 1000;
-      this.markMesh.material.opacity = 0.35 + 0.15 * (0.5 + 0.5 * Math.sin(t * 3));
-      this.markMesh.visible = true;
-    } else {
+    if (!grid.mark) {
       this.markMesh.visible = false;
+      this.markParticles.visible = false;
+      this._markLastTime = performance.now();
+      return;
     }
+    const p = gridToWorld(grid.mark.x, grid.mark.z);
+    const h = this._markHeight;
+
+    // Box geom is centered; lifting by h/2 puts the base on the floor.
+    this.markMesh.position.set(p.x, h / 2, p.z);
+    // Gentle breathing on the shaft body so it reads as alive even when idle.
+    const t = performance.now() / 1000;
+    this.markMesh.material.uniforms.uOpacity.value =
+      0.45 + 0.20 * (0.5 + 0.5 * Math.sin(t * 3));
+    this.markMesh.visible = true;
+
+    // Advance particles upward; wrap to a fresh x/z when they reach the top.
+    const now = performance.now();
+    const dt = Math.min(0.05, Math.max(0, (now - this._markLastTime) / 1000));
+    this._markLastTime = now;
+    const data = this._markParticleData;
+    const speed = 0.7;
+    const pos = data.positions;
+    for (let i = 0; i < data.count; i++) {
+      const yi = i * 3 + 1;
+      pos[yi] += speed * dt;
+      if (pos[yi] > data.h) {
+        pos[yi] = 0;
+        pos[i * 3]     = (Math.random() - 0.5) * data.w * 0.9;
+        pos[i * 3 + 2] = (Math.random() - 0.5) * data.w * 0.9;
+      }
+    }
+    this.markParticles.geometry.attributes.position.needsUpdate = true;
+    this.markParticles.position.set(p.x, 0, p.z);
+    this.markParticles.visible = true;
   }
 
   updateCamera(player, dt) {
