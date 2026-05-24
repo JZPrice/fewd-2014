@@ -1,4 +1,4 @@
-import { GRID_W, GRID_D } from "./config.js?v=70";
+import { GRID_W, GRID_D } from "./config.js?v=71";
 
 export class Grid {
   constructor(w, d) {
@@ -14,16 +14,6 @@ export class Grid {
     this.w = w;
     this.d = d;
     this.reset();
-  }
-
-  // Tack on n fresh rows at the back, preserving existing tile state
-  // (including any holes the player accumulated during the wave).
-  extendDepth(n) {
-    if (n <= 0) return;
-    for (let x = 0; x < this.w; x++) {
-      for (let i = 0; i < n; i++) this.tiles[x].push(true);
-    }
-    this.d += n;
   }
 
   reset() {

@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=70";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=70";
+import { Cube } from "./cube.js?v=71";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=71";
 
 export class Stage {
   constructor(stageDef) {
@@ -12,7 +12,15 @@ export class Stage {
     this.tickMs = stageDef.tickMs;
     this.rollMs = stageDef.rollMs ?? Math.min(stageDef.tickMs - 200, 1000);
     this.gridW = stageDef.gridW ?? GRID_W;
-    this.gridD = stageDef.gridD ?? GRID_D;
+    // Platform depth includes every wave's footprint up front: the runway
+    // behind the player is as long at stage start as it would be after
+    // clearing every wave one-by-one. Cubes still spawn at the new back
+    // edge, so later waves have a longer approach.
+    const baseGridD = stageDef.gridD ?? GRID_D;
+    const waveDepthSum = (stageDef.waves ?? []).reduce(
+      (s, w) => s + (w.layout?.length ?? 0), 0,
+    );
+    this.gridD = baseGridD + waveDepthSum;
     this.nextTickAt = 0;
     this.pendingRowDrop = 0;
     this.forbiddenFellOff = 0;
