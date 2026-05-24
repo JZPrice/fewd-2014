@@ -273,25 +273,37 @@ body.touch #touch-controls {
   background: rgba(160, 200, 255, 0.78);
 }
 
-/* Actions: three large buttons anchored bottom-right */
+/* Main mark/fire button anchored bottom-right. Bomb is a smaller satellite
+   button positioned absolutely relative to .actions so its visibility
+   never shifts the main button. */
 .actions {
   position: absolute;
   right: max(16px, env(safe-area-inset-right));
   bottom: max(16px, env(safe-area-inset-bottom));
-  display: flex;
-  gap: 10px;
+  width: 84px;
+  height: 84px;
 }
 
 .actions .tbtn {
   position: static;
-  width: 84px;
-  height: 84px;
   font-size: 13px;
   border-radius: 50%;
 }
-/* Override .act-* display:flex so hidden still removes the bomb button
-   from layout entirely (no reserved gap). */
 .actions .tbtn[hidden] { display: none; }
+
+.actions .act-mark-fire {
+  width: 84px;
+  height: 84px;
+}
+
+.actions .act-bomb {
+  position: absolute;
+  right: 100%;
+  bottom: 10px;
+  margin-right: 14px;
+  width: 64px;
+  height: 64px;
+}
 /* Mark-then-fire: white circle with a black + that rotates to a red x on a
    black background when a mark is placed. */
 .act-mark-fire {
@@ -333,8 +345,9 @@ body.touch .touch-only { display: block; }
   #hud { font-size: 12px; padding: 8px 12px; }
   .joystick { width: 140px; height: 140px; }
   .joy-stick { width: 54px; height: 54px; }
-  .actions { gap: 10px; }
-  .actions .tbtn { width: 76px; height: 76px; font-size: 11px; border-radius: 50%; }
+  .actions { width: 76px; height: 76px; }
+  .actions .act-mark-fire { width: 76px; height: 76px; }
+  .actions .act-bomb { width: 58px; height: 58px; margin-right: 12px; bottom: 8px; }
 }
 
 /* hide controls during title/gameover overlays */
