@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=58";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=59";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -139,16 +139,6 @@ export class Renderer {
     this._installEnvironment();
     this._buildLavaBackground();
 
-    // DIAGNOSTIC: bright red emissive cube floating below the platform at
-    // world y = -25 (deep in the underbody zone). If this cube is visible
-    // but the underbody is not, the InstancedMesh is the problem. If this
-    // cube is also invisible, depth rendering itself is broken.
-    const testMat = new THREE.MeshBasicMaterial({ color: 0xff2020 });
-    const testCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), testMat);
-    testCube.position.set(0, -25, 0);
-    testCube.frustumCulled = false;
-    this.scene.add(testCube);
-
     // Critically-damped spring state for the follow camera. Position is
     // tracked separately from velocity so the spring is stable for any dt.
     this._camPosX = 0; this._camVelX = 0;
@@ -222,44 +212,39 @@ export class Renderer {
   }
 
   _buildPlatformBody() {
-    // Stack of GRID_W x GRID_D unit cubes - same size, color, and gap as
-    // the floor tiles above. InstancedMesh keeps it to a single draw call.
-    // Instance ordering below is column-major-by-layer:
-    // index = layer * (GRID_W * GRID_D) + x * GRID_D + z, so we can step
-    // through all layers of a single (x,z) column when it drops.
+    // One InstancedMesh per Y-layer, each with GRID_W*GRID_D = 48 instances.
+    // We split because iOS Safari appears to silently truncate large single-
+    // mesh instance buffers, dropping the deeper instances of a 1700+ mesh.
+    // 48 instances per mesh is well within any known limit. Per layer the
+    // instance index is x * GRID_D + z, so a single column maps to that
+    // same instance index across all `_underbodyMeshes[layer]` meshes.
     const LAYERS = 36;
-    const COUNT = GRID_W * GRID_D * LAYERS;
+    const PER_LAYER = GRID_W * GRID_D;
     const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
-    const inst = new THREE.InstancedMesh(geom, mat, COUNT);
-    inst.castShadow = false;
-    inst.receiveShadow = true;
+
+    this._underbodyMeshes = [];
+    this._underbodyLayers = LAYERS;
     const dummy = new THREE.Object3D();
     for (let layer = 0; layer < LAYERS; layer++) {
       const y = -TILE / 2 - (layer + 1) * TILE;
+      const inst = new THREE.InstancedMesh(geom, mat, PER_LAYER);
+      inst.castShadow = false;
+      inst.receiveShadow = true;
+      inst.frustumCulled = false;
       for (let x = 0; x < GRID_W; x++) {
         for (let z = 0; z < GRID_D; z++) {
           const p = gridToWorld(x, z);
           dummy.position.set(p.x, y, p.z);
           dummy.updateMatrix();
-          const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
-          inst.setMatrixAt(idx, dummy.matrix);
+          inst.setMatrixAt(x * GRID_D + z, dummy.matrix);
         }
       }
+      inst.instanceMatrix.needsUpdate = true;
+      this.scene.add(inst);
+      this._underbodyMeshes.push(inst);
     }
-    inst.instanceMatrix.needsUpdate = true;
-    // Three.js's InstancedMesh frustum-culls using only the geometry's
-    // bounding sphere (a unit-cube sphere at origin). With 36 layers
-    // extending to y=-37, that sphere can fall outside the camera frustum
-    // when the camera looks downward, killing the entire mesh. Disable
-    // culling outright, and also compute a real bounding box over all
-    // instances so debug tools see the right extents.
-    inst.frustumCulled = false;
-    inst.computeBoundingSphere();
-    this.platformBody = inst;
-    this._underbodyMesh = inst;
-    this._underbodyLayers = LAYERS;
     this._underbodyDummy = dummy;
 
     // Per-column drop state. y is the current Y offset from rest (0 = at
@@ -274,7 +259,8 @@ export class Renderer {
     }
   }
 
-  // Push a single instance of the underbody to (worldX, baseY + ySlide, worldZ).
+  // Move the (x, z) column's instance in `layer` to its rest position +
+  // a vertical slide offset. Called per-layer during column drop animation.
   _setUnderbodyInstance(x, z, layer, ySlide) {
     const baseY = -TILE / 2 - (layer + 1) * TILE;
     const p = gridToWorld(x, z);
@@ -283,8 +269,7 @@ export class Renderer {
     d.rotation.set(0, 0, 0);
     d.scale.set(1, 1, 1);
     d.updateMatrix();
-    const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
-    this._underbodyMesh.setMatrixAt(idx, d.matrix);
+    this._underbodyMeshes[layer].setMatrixAt(x * GRID_D + z, d.matrix);
   }
 
   _hideUnderbodyColumn(x, z) {
@@ -293,9 +278,9 @@ export class Renderer {
     d.position.set(0, -1000, 0);
     d.rotation.set(0, 0, 0);
     d.updateMatrix();
+    const idx = x * GRID_D + z;
     for (let layer = 0; layer < this._underbodyLayers; layer++) {
-      const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
-      this._underbodyMesh.setMatrixAt(idx, d.matrix);
+      this._underbodyMeshes[layer].setMatrixAt(idx, d.matrix);
     }
   }
 
@@ -747,8 +732,8 @@ export class Renderer {
             col.y = 0; col.vy = 0; col.dropping = false; col.dropDelay = 0; col.hidden = false;
             for (let layer = 0; layer < this._underbodyLayers; layer++) {
               this._setUnderbodyInstance(x, z, layer, 0);
+              this._underbodyMeshes[layer].instanceMatrix.needsUpdate = true;
             }
-            this._underbodyMesh.instanceMatrix.needsUpdate = true;
           }
         } else if (!ud.dropping) {
           // First frame this tile is removed - queue a staggered fall so
@@ -837,7 +822,11 @@ export class Renderer {
         underbodyDirty = true;
       }
     }
-    if (underbodyDirty) this._underbodyMesh.instanceMatrix.needsUpdate = true;
+    if (underbodyDirty) {
+      for (let layer = 0; layer < this._underbodyLayers; layer++) {
+        this._underbodyMeshes[layer].instanceMatrix.needsUpdate = true;
+      }
+    }
   }
 
   syncCubes(cubes, now) {
