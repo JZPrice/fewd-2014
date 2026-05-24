@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=54";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=55";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -102,7 +102,7 @@ export class Renderer {
     this._baseCamZ = 5.8;
     this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 100);
     this.camera.position.set(0, this._baseCamY, this._baseCamZ);
-    this.camera.lookAt(0, 0.4, this._lookZ);
+    this.camera.lookAt(0, -3.5, this._lookZ);
 
     this._buildLights();
     this._buildPlatformBody();
@@ -1015,7 +1015,7 @@ export class Renderer {
     }
 
     const lookX = this._lookPosX * 0.65;
-    this.camera.lookAt(lookX, 0.4, this._lookPosZ);
+    this.camera.lookAt(lookX, -3.5, this._lookPosZ);
   }
 
   pulseMark(strength) {
@@ -1054,7 +1054,7 @@ export class Renderer {
     this._baseCamY = camY;
     this._followDZ = followDZ;
     this.camera.position.set(0, camY, this._lookZ + followDZ);
-    this.camera.lookAt(0, 0.4, this._lookZ);
+    this.camera.lookAt(0, -3.5, this._lookZ);
     this.camera.updateProjectionMatrix();
   }
 
