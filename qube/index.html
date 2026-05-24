@@ -7,11 +7,11 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0a0a12" />
-  <title>Qube</title>
+  <title>Castles</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <link rel="stylesheet" href="css/style.css?v=76" />
+  <link rel="stylesheet" href="css/style.css?v=77" />
   <script type="importmap">
     {
       "imports": {
@@ -24,7 +24,7 @@
 <body>
   <canvas id="stage"></canvas>
 
-  <div id="version-stamp">v76 · 2026-05-24 17:27 UTC</div>
+  <div id="version-stamp">v77 · 2026-05-24 17:33 UTC</div>
 
   <button id="fast-btn" aria-label="hold to fast-forward">
     <svg class="ff-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -72,15 +72,23 @@
   </div>
 
   <div id="title" class="overlay">
-    <h1>QUBE</h1>
-    <p class="tagline">a rolling-block puzzle</p>
+    <h1>CASTLES</h1>
+    <p class="tagline">a rolling-castle puzzle</p>
 
     <div id="char-select" class="char-select">
       <span class="char-label">CHARACTER</span>
       <div class="char-row">
-        <button id="char-prev" class="char-arrow" aria-label="previous character">◀</button>
+        <button id="char-prev" class="char-arrow" aria-label="previous character">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="15,6 9,12 15,18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
         <span id="char-name">Robot</span>
-        <button id="char-next" class="char-arrow" aria-label="next character">▶</button>
+        <button id="char-next" class="char-arrow" aria-label="next character">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="9,6 15,12 9,18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -107,6 +115,6 @@
     <p class="prompt touch-only">tap to restart</p>
   </div>
 
-  <script type="module" src="js/main.js?v=76"></script>
+  <script type="module" src="js/main.js?v=77"></script>
 </body>
 </html>
