@@ -1,11 +1,12 @@
-import { Renderer } from "./renderer.js?v=77";
-import { Input } from "./input.js?v=77";
-import { AudioEngine } from "./audio.js?v=77";
-import { HUD } from "./hud.js?v=77";
-import { Game } from "./game.js?v=77";
-import { Debugger } from "./debug.js?v=77";
-import { Haptics } from "./haptics.js?v=77";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=77";
+import { Renderer } from "./renderer.js?v=78";
+import { Input } from "./input.js?v=78";
+import { AudioEngine } from "./audio.js?v=78";
+import { HUD } from "./hud.js?v=78";
+import { Game } from "./game.js?v=78";
+import { Debugger } from "./debug.js?v=78";
+import { Haptics } from "./haptics.js?v=78";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=78";
+import { CharacterPreview } from "./charPreview.js?v=78";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -23,10 +24,13 @@ const dbg = new Debugger(game);
 
 let charIdx = Math.max(0, CHARACTERS.findIndex(c => c.id === savedCharacterId()));
 const charNameEl = document.getElementById("char-name");
+const previewCanvas = document.getElementById("char-preview-canvas");
+const charPreview = previewCanvas ? new CharacterPreview(previewCanvas) : null;
 function applyCharacter() {
   const c = CHARACTERS[charIdx];
   charNameEl.textContent = c.name;
   renderer.setCharacter(c);
+  charPreview?.setCharacter(c);
   saveCharacterId(c.id);
 }
 applyCharacter();
