@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=81";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=82";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -522,6 +522,10 @@ export class Renderer {
       const clipMap = charDef.clips || {};
       const clipsByName = {};
       for (const clip of gltf.animations) clipsByName[clip.name] = clip;
+      // Per-character clip speed multiplier - useful for small characters
+      // whose walk cycle takes a small stride but needs to cover the same
+      // ground as the heroes. Defaults to 1 (clip plays at authored speed).
+      const animSpeed = charDef.animSpeed ?? 1;
       for (const canonical of ["idle", "walk", "run", "death"]) {
         const targetName = clipMap[canonical];
         if (!targetName) continue;
@@ -530,6 +534,7 @@ export class Renderer {
         const action = this._mixer.clipAction(clip);
         action.enabled = true;
         action.setEffectiveWeight(0);
+        action.timeScale = animSpeed;
         action.play();
         this._anims[canonical] = action;
       }

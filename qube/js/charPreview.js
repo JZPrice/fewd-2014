@@ -75,7 +75,11 @@ export class CharacterPreview {
       const targetName = clipMap.idle;
       if (targetName) {
         const clip = gltf.animations.find(c => c.name === targetName);
-        if (clip) this._mixer.clipAction(clip).play();
+        if (clip) {
+          const action = this._mixer.clipAction(clip);
+          action.timeScale = charDef.animSpeed ?? 1;
+          action.play();
+        }
       }
     }, undefined, (err) => {
       console.error(`preview ${charDef.id} failed to load:`, err);
