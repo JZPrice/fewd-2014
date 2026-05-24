@@ -1,0 +1,9 @@
+Effect models used in this directory:
+
+bomb.glb        Bomb (Quaternius)
+                Source: https://poly.pizza/m/qGUAks6IHQ
+                License: CC0 1.0 (no attribution required;
+                  acknowledged here as a courtesy)
+                Used as a fading "ghost bomb" hint that flashes
+                on each newly-placed mark to teach the player
+                what marking a tile signals.
