@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=44";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=45";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -109,7 +109,6 @@ export class Renderer {
     this._buildFloor();
     this._buildPlayer();
     this._buildMark();
-    this._buildFireBlast();
     this._buildBombs();
 
     this.cubeMeshes = new Map();
@@ -584,70 +583,41 @@ export class Renderer {
     this.markParticles.visible = false;
     this.scene.add(this.markParticles);
 
-    this._markParticleData = { positions, count: COUNT, w, h };
+    this._markParticleData = {
+      positions,
+      vel: new Float32Array(COUNT * 3),
+      count: COUNT,
+      w,
+      h,
+    };
     this._markLastTime = performance.now();
+
+    // Fire-blast state. While active, syncMarks renders the shaft and
+    // particles in red at (x, z) for `dur` ms, then deactivates.
+    this._markBlast = { active: false, t0: 0, x: 0, z: 0, dur: 520 };
+    this._markBaseColor = new THREE.Color(COLORS.mark);
+    this._markBlastColor = new THREE.Color(0xff2818);
   }
 
-  // Visual punch when the player fires on a mark: a brief red column at the
-  // mark's position plus an expanding bright sphere. Both additive, so the
-  // tile "lights up" in red as the mark detonates. Triggered by fireBlast().
-  _buildFireBlast() {
-    const w = TILE * 0.98;
-    const h = 4;
-    const shaftMat = new THREE.MeshBasicMaterial({
-      color: 0xff2818,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: true,
-    });
-    this._blastShaft = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), shaftMat);
-    this._blastShaft.visible = false;
-    this.scene.add(this._blastShaft);
-
-    const sphereMat = new THREE.MeshBasicMaterial({
-      color: 0xff3a20,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: true,
-    });
-    this._blastSphere = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), sphereMat);
-    this._blastSphere.visible = false;
-    this.scene.add(this._blastSphere);
-
-    this._blast = { active: false, t0: 0, dur: 360, h };
-  }
-
+  // Fire blast = the existing mark shaft + particles, briefly recolored red
+  // with the particles bursting outward, then fading. State is consumed by
+  // syncMarks so the visual keeps rendering after grid.mark has been cleared.
   fireBlast(x, z) {
-    const p = gridToWorld(x, z);
-    const h = this._blast.h;
-    this._blastShaft.position.set(p.x, h / 2, p.z);
-    this._blastShaft.material.opacity = 0.95;
-    this._blastShaft.visible = true;
-    this._blastSphere.position.set(p.x, 0.5, p.z);
-    this._blastSphere.scale.setScalar(0.4);
-    this._blastSphere.material.opacity = 1.0;
-    this._blastSphere.visible = true;
-    this._blast.active = true;
-    this._blast.t0 = performance.now();
-  }
-
-  _animateFireBlast() {
-    if (!this._blast.active) return;
-    const u = Math.min(1, (performance.now() - this._blast.t0) / this._blast.dur);
-    // Sphere: ease-out cubic expansion, linear opacity fade.
-    const s = 0.4 + (1 - Math.pow(1 - u, 3)) * 2.2;
-    this._blastSphere.scale.setScalar(s);
-    this._blastSphere.material.opacity = 1.0 - u;
-    // Shaft: gone by mid-blast - it's the brief red "where the mark was" flash.
-    this._blastShaft.material.opacity = Math.max(0, 0.95 * (1 - u * 2));
-    if (u >= 1) {
-      this._blast.active = false;
-      this._blastSphere.visible = false;
-      this._blastShaft.visible = false;
+    this._markBlast.active = true;
+    this._markBlast.t0 = performance.now();
+    this._markBlast.x = x;
+    this._markBlast.z = z;
+    // Give every particle an outward radial kick + upward burst.
+    const data = this._markParticleData;
+    const vel = data.vel;
+    for (let i = 0; i < data.count; i++) {
+      const px = data.positions[i * 3];
+      const pz = data.positions[i * 3 + 2];
+      const d = Math.hypot(px, pz) || 0.0001;
+      const speed = 4.5 + Math.random() * 2.5;
+      vel[i * 3]     = (px / d) * speed;
+      vel[i * 3 + 1] = 3.0 + Math.random() * 2.0;
+      vel[i * 3 + 2] = (pz / d) * speed;
     }
   }
 
@@ -931,39 +901,82 @@ export class Renderer {
   }
 
   syncMarks(grid) {
-    if (!grid.mark) {
-      this.markMesh.visible = false;
-      this.markParticles.visible = false;
-      this._markLastTime = performance.now();
-      return;
-    }
-    const p = gridToWorld(grid.mark.x, grid.mark.z);
-    const h = this._markHeight;
-
-    // Box geom is centered; lifting by h/2 puts the base on the floor.
-    this.markMesh.position.set(p.x, h / 2, p.z);
-    // Gentle breathing on the shaft body so it reads as alive even when idle.
-    const t = performance.now() / 1000;
-    this.markMesh.material.uniforms.uOpacity.value =
-      0.45 + 0.20 * (0.5 + 0.5 * Math.sin(t * 3));
-    this.markMesh.visible = true;
-
-    // Advance particles upward; wrap to a fresh x/z when they reach the top.
     const now = performance.now();
     const dt = Math.min(0.05, Math.max(0, (now - this._markLastTime) / 1000));
     this._markLastTime = now;
-    const data = this._markParticleData;
-    const speed = 0.7;
-    const pos = data.positions;
-    for (let i = 0; i < data.count; i++) {
-      const yi = i * 3 + 1;
-      pos[yi] += speed * dt;
-      if (pos[yi] > data.h) {
-        pos[yi] = 0;
-        pos[i * 3]     = (Math.random() - 0.5) * data.w * 0.9;
-        pos[i * 3 + 2] = (Math.random() - 0.5) * data.w * 0.9;
+
+    const blast = this._markBlast;
+    if (blast.active) {
+      const u = (now - blast.t0) / blast.dur;
+      if (u >= 1) {
+        blast.active = false;
+        // Reset particles for the next mark so they restart with fresh rest pos.
+        const data = this._markParticleData;
+        for (let i = 0; i < data.count; i++) {
+          data.positions[i * 3]     = (Math.random() - 0.5) * data.w * 0.9;
+          data.positions[i * 3 + 1] = Math.random() * data.h;
+          data.positions[i * 3 + 2] = (Math.random() - 0.5) * data.w * 0.9;
+          data.vel[i * 3] = data.vel[i * 3 + 1] = data.vel[i * 3 + 2] = 0;
+        }
       }
     }
+
+    let mode;
+    let mx, mz;
+    if (grid.mark) {
+      mode = "idle";
+      mx = grid.mark.x; mz = grid.mark.z;
+    } else if (blast.active) {
+      mode = "blast";
+      mx = blast.x; mz = blast.z;
+    } else {
+      this.markMesh.visible = false;
+      this.markParticles.visible = false;
+      return;
+    }
+
+    const p = gridToWorld(mx, mz);
+    const h = this._markHeight;
+    const data = this._markParticleData;
+    const pos = data.positions;
+    const vel = data.vel;
+
+    if (mode === "idle") {
+      // Blue gradient column with a gentle breathing pulse.
+      this.markMesh.material.uniforms.uColor.value.copy(this._markBaseColor);
+      this.markMesh.material.uniforms.uOpacity.value =
+        0.45 + 0.20 * (0.5 + 0.5 * Math.sin((now / 1000) * 3));
+      this.markParticles.material.uniforms.uColor.value.copy(this._markBaseColor);
+      // Particles drift upward, wrap to the floor when they cap out.
+      const speed = 0.7;
+      for (let i = 0; i < data.count; i++) {
+        const yi = i * 3 + 1;
+        pos[yi] += speed * dt;
+        if (pos[yi] > h) {
+          pos[yi] = 0;
+          pos[i * 3]     = (Math.random() - 0.5) * data.w * 0.9;
+          pos[i * 3 + 2] = (Math.random() - 0.5) * data.w * 0.9;
+        }
+      }
+    } else {
+      // Blast: red shaft fading out + particles flying outward.
+      const u = Math.min(1, (now - blast.t0) / blast.dur);
+      this.markMesh.material.uniforms.uColor.value.copy(this._markBlastColor);
+      // Quick "pop" — bright early, fade by end.
+      this.markMesh.material.uniforms.uOpacity.value = (1.0 - u) * 1.1;
+      this.markParticles.material.uniforms.uColor.value.copy(this._markBlastColor);
+      // Integrate velocity, apply a touch of gravity so the burst arcs.
+      const g = 6.0;
+      for (let i = 0; i < data.count; i++) {
+        pos[i * 3]     += vel[i * 3]     * dt;
+        pos[i * 3 + 1] += vel[i * 3 + 1] * dt;
+        pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+        vel[i * 3 + 1] -= g * dt;
+      }
+    }
+
+    this.markMesh.position.set(p.x, h / 2, p.z);
+    this.markMesh.visible = true;
     this.markParticles.geometry.attributes.position.needsUpdate = true;
     this.markParticles.position.set(p.x, 0, p.z);
     this.markParticles.visible = true;
@@ -1012,7 +1025,6 @@ export class Renderer {
 
   step(dt) {
     this._animateFloorDrops(dt);
-    this._animateFireBlast();
     if (this._mixer) this._mixer.update(dt);
     if (this._lavaUniforms) this._lavaUniforms.uTime.value += dt;
   }
