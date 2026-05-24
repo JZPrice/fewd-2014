@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=61";
-import { Player } from "./player.js?v=61";
-import { Stage } from "./stage.js?v=61";
-import { STAGES } from "./stages.js?v=61";
-import { GRID_W, GRID_D } from "./config.js?v=61";
+import { Grid } from "./grid.js?v=62";
+import { Player } from "./player.js?v=62";
+import { Stage } from "./stage.js?v=62";
+import { STAGES } from "./stages.js?v=62";
+import { GRID_W, GRID_D } from "./config.js?v=62";
 
 const STATE = {
   TITLE: "title",
@@ -31,6 +31,15 @@ export class Game {
     this.paused = false;
     this.stepRequested = false;
     this._pausedAt = 0;
+
+    // The renderer staggers the row-drop animation cube-by-cube. Each time
+    // a single cube transitions from waiting to falling, we want a thunk +
+    // small camera shake + haptic tick so the sequence builds dread.
+    this.renderer.onTileDrop = () => {
+      this.audio.tileDrop?.();
+      this.renderer.shake?.(0.08, 110);
+      this.haptics.rowDrop?.();
+    };
   }
 
   togglePaused() {

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=61";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=62";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -737,17 +737,19 @@ export class Renderer {
           }
         } else if (!ud.dropping) {
           // First frame this tile is removed - queue a staggered fall so
-          // the row topples block-by-block L->R, and aim well below the
-          // 18-layer underbody so it visibly plummets past the platform.
+          // the row topples one cube at a time L->R, building suspense.
+          // ~0.4s per column means a 4-wide row takes ~1.2s to commit.
+          const delay = 0.40 * x;
           ud.targetY = ud.restY - 22;
           ud.vy = 0;
           ud.dropping = true;
-          ud.dropDelay = 0.09 * x;
+          ud.dropDelay = delay;
+          ud.fallNotified = false;
           // Mirror onto the underbody column at this (x, z).
           col.dropping = true;
           col.vy = 0;
           col.y = 0;
-          col.dropDelay = 0.09 * x;
+          col.dropDelay = delay;
           col.hidden = false;
         }
       }
@@ -765,8 +767,17 @@ export class Renderer {
         if (ud.dropping) {
           // Stagger: each block in the row waits its turn before falling.
           if (ud.dropDelay > 0) {
+            const prev = ud.dropDelay;
             ud.dropDelay -= dt;
+            if (prev > 0 && ud.dropDelay <= 0) {
+              // Just transitioned from waiting -> falling: fire feedback.
+              this.onTileDrop?.(x, z);
+            }
             continue;
+          } else if (!ud.fallNotified) {
+            // Tile was queued with 0 delay (rare); still notify on first frame.
+            this.onTileDrop?.(x, z);
+            ud.fallNotified = true;
           }
           // Gravity-based fall plus a forward tilt so the block visibly
           // tumbles off the edge rather than sliding straight down.

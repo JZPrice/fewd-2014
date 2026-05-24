@@ -69,6 +69,13 @@ export class AudioEngine {
     this._envTone({ freq: 80, type: "sawtooth", attack: 0.005, decay: 0.35, gain: 0.3, freq2: 35 });
   }
 
+  // Single cube falling off the front edge - tight low thunk, used per
+  // cube during the staggered row-drop sequence to build dread.
+  tileDrop() {
+    this._envTone({ freq: 90, type: "sawtooth", attack: 0.002, decay: 0.18, gain: 0.28, freq2: 50 });
+    this._noise({ duration: 0.10, gain: 0.18, filterFreq: 1200, filterQ: 1 });
+  }
+
   perfect() {
     const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((f, i) => setTimeout(() => {
