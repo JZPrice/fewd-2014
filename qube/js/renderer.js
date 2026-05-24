@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=94";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=95";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -757,7 +757,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=94", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=95", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -834,7 +834,10 @@ export class Renderer {
   spawnBombAuraOnCubes(cubeIds) {
     if (!cubeIds || cubeIds.length === 0) return;
     if (!this._bombAuraGeom) {
-      this._bombAuraGeom = new THREE.BoxGeometry(TILE * 1.12, TILE * 1.12, TILE * 1.12);
+      // Slightly larger box per cube; we render only its back-faces so
+      // the cube body occludes everything except the thin rim that pokes
+      // past the cube's silhouette - reads as a halo, not a flat overlay.
+      this._bombAuraGeom = new THREE.BoxGeometry(TILE * 1.22, TILE * 1.22, TILE * 1.22);
     }
     this._bombAuras ??= [];
     for (const id of cubeIds) {
@@ -844,12 +847,12 @@ export class Renderer {
         color: 0xff3030,
         transparent: true,
         opacity: 0,
+        side: THREE.BackSide,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
       });
       const aura = new THREE.Mesh(this._bombAuraGeom, mat);
-      // Match the cube mesh's offset within the pivot so the aura sits
-      // around the cube body, not the pivot edge.
+      // Match the cube mesh's offset within the pivot so the halo wraps
+      // the cube body, not the pivot edge.
       aura.position.set(0, 0.5, -0.5);
       entry.pivot.add(aura);
       this._bombAuras.push({
@@ -871,8 +874,10 @@ export class Renderer {
         this._bombAuras.splice(i, 1);
         continue;
       }
-      // Quick rise, hold at peak, fade out.
-      const PEAK = 0.55;
+      // Quick rise, hold at peak, fade out. Higher peak than the mark
+      // ghost because we're only seeing the silhouette rim, not the
+      // whole object.
+      const PEAK = 0.85;
       let alpha;
       if (t < 0.15)      alpha = (t / 0.15) * PEAK;
       else if (t < 0.50) alpha = PEAK;
