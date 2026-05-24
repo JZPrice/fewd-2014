@@ -1,12 +1,12 @@
-import { Renderer } from "./renderer.js?v=94";
-import { Input } from "./input.js?v=94";
-import { AudioEngine } from "./audio.js?v=94";
-import { HUD } from "./hud.js?v=94";
-import { Game } from "./game.js?v=94";
-import { Debugger } from "./debug.js?v=94";
-import { Haptics } from "./haptics.js?v=94";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=94";
-import { CharacterPreview } from "./charPreview.js?v=94";
+import { Renderer } from "./renderer.js?v=95";
+import { Input } from "./input.js?v=95";
+import { AudioEngine } from "./audio.js?v=95";
+import { HUD } from "./hud.js?v=95";
+import { Game } from "./game.js?v=95";
+import { Debugger } from "./debug.js?v=95";
+import { Haptics } from "./haptics.js?v=95";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=95";
+import { CharacterPreview } from "./charPreview.js?v=95";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
