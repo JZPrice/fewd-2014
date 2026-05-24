@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=67";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=67";
+import { Cube } from "./cube.js?v=68";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=68";
 
 export class Stage {
   constructor(stageDef) {
@@ -91,13 +91,12 @@ export class Stage {
   tick(now, player, grid) {
     const events = {
       crushed: false,
-      takenWithRow: false,
       rowsDropped: 0,
       cubesFellInHole: 0,
       dangerNear: false,
     };
 
-    let front = this.frontEdge(grid);
+    const front = this.frontEdge(grid);
 
     for (const cube of this.cubes) {
       if (cube.dead || cube.fallingOff) continue;
@@ -120,15 +119,9 @@ export class Stage {
         } else if (cube.isAdvantage()) {
           // No special effect.
         } else {
-          // Normal: take the current front row with it. Player on that row
-          // goes too; player further back is safe.
-          if (front < this.gridD) {
-            for (let x = 0; x < this.gridW; x++) grid.tiles[x][front] = false;
-            events.rowsDropped++;
-            this.floorLost = true;
-            if (player.tz === front) events.takenWithRow = true;
-            front = this.frontEdge(grid); // recompute for subsequent cubes this tick
-          }
+          // Normal: front row will drop, but the actual tile removal is queued
+          // by Game so the player has time to run back off it.
+          if (front < this.gridD) events.rowsDropped++;
         }
         // Visual: cube tumbles forward off the edge for ~700ms, then is reaped.
         cube.startFalling(now, 700);

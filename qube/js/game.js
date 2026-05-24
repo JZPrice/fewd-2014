@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=67";
-import { Player } from "./player.js?v=67";
-import { Stage } from "./stage.js?v=67";
-import { STAGES } from "./stages.js?v=67";
-import { GRID_W, GRID_D } from "./config.js?v=67";
+import { Grid } from "./grid.js?v=68";
+import { Player } from "./player.js?v=68";
+import { Stage } from "./stage.js?v=68";
+import { STAGES } from "./stages.js?v=68";
+import { GRID_W, GRID_D } from "./config.js?v=68";
 
 const STATE = {
   TITLE: "title",
@@ -409,15 +409,13 @@ export class Game {
       if (events.dangerNear) { this.audio.danger(); this.haptics.danger(); }
 
       if (events.rowsDropped > 0) {
-        this.audio.boom();
         this.haptics.rowDrop();
-        this.renderer.shake?.(0.16, 280);
         this.hud.flash(`-${events.rowsDropped} ROW${events.rowsDropped > 1 ? "S" : ""}`, 900);
+        for (let i = 0; i < events.rowsDropped; i++) this._requestFrontRowDrop(now);
       }
 
       this.hud.setCubes(this.stage.remainingCubes());
 
-      if (events.takenWithRow) { this._die("the row dropped with you"); return; }
       if (!this.grid.hasTile(this.player.tx, this.player.tz)) {
         this._die("fell through the floor"); return;
       }
