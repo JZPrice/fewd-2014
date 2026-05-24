@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=39";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=40";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -624,10 +624,13 @@ export class Renderer {
           mesh.visible = true;
           ud.targetY = ud.restY;
         } else if (!ud.dropping) {
-          // First frame this tile is removed - kick off a fresh drop.
-          ud.targetY = ud.restY - 10;
-          ud.vy = -0.5;
+          // First frame this tile is removed - queue a staggered fall so
+          // the row topples block-by-block L->R, and aim well below the
+          // 18-layer underbody so it visibly plummets past the platform.
+          ud.targetY = ud.restY - 50;
+          ud.vy = 0;
           ud.dropping = true;
+          ud.dropDelay = 0.09 * x;
         }
       }
     }
@@ -642,14 +645,21 @@ export class Renderer {
         const m = this.floorMeshes[x][z];
         const ud = m.userData;
         if (ud.dropping) {
-          // Gravity-based fall plus a forward tilt so the row visibly
+          // Stagger: each block in the row waits its turn before falling.
+          if (ud.dropDelay > 0) {
+            ud.dropDelay -= dt;
+            continue;
+          }
+          // Gravity-based fall plus a forward tilt so the block visibly
           // tumbles off the edge rather than sliding straight down.
           ud.vy -= G * dt;
           m.position.y += ud.vy * dt;
           if (m.rotation.x < MAX_TILT) {
             m.rotation.x = Math.min(MAX_TILT, m.rotation.x + dt * TILT_RATE);
           }
-          if (m.position.y < ud.restY - 2) {
+          // Hide only after the block has fallen clear of the underbody
+          // (~18 units below rest). Anything earlier looks like it pops out.
+          if (m.position.y < ud.restY - 22) {
             m.visible = false;
           }
         } else {
