@@ -30,6 +30,22 @@ export const CHARACTERS = [
   { id: "mage",      name: "Mage",      file: "assets/characters/mage.glb",      ...KAYKIT, yOffset: 0.24 },
   { id: "rogue",     name: "Rogue",     file: "assets/characters/rogue.glb",     ...KAYKIT, yOffset: 0.26 },
   { id: "barbarian", name: "Barbarian", file: "assets/characters/barbarian.glb", ...KAYKIT },
+  // Quaternius goblin (CC0 via poly.pizza). Smaller stature than the
+  // KayKit heroes - scale is tuned so the goblin reads as ~2/3 hero
+  // height. Clip names use the model's piped armature-prefixed format.
+  {
+    id: "goblin",
+    name: "Goblin",
+    file: "assets/characters/goblin.glb",
+    scale: 0.40,
+    yOffset: 0,
+    clips: {
+      idle:  "EnemyArmature|EnemyArmature|EnemyArmature|Idle",
+      walk:  "EnemyArmature|EnemyArmature|EnemyArmature|Walk",
+      run:   "EnemyArmature|EnemyArmature|EnemyArmature|Run",
+      death: "EnemyArmature|EnemyArmature|EnemyArmature|Death",
+    },
+  },
 ];
 
 export function characterById(id) {
