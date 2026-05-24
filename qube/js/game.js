@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=40";
-import { Player } from "./player.js?v=40";
-import { Stage } from "./stage.js?v=40";
-import { STAGES } from "./stages.js?v=40";
-import { FORBIDDEN_HOLE_DEPTH } from "./config.js?v=40";
+import { Grid } from "./grid.js?v=41";
+import { Player } from "./player.js?v=41";
+import { Stage } from "./stage.js?v=41";
+import { STAGES } from "./stages.js?v=41";
+import { GRID_W, GRID_D } from "./config.js?v=41";
 
 const STATE = {
   TITLE: "title",
@@ -179,7 +179,7 @@ export class Game {
       this.hud.setBombs(this.grid.bombs.length);
     } else if (hit.isForbidden()) {
       this.stage.forbiddenDestroyed = true;
-      this._applyForbiddenBlast(m.x, m.z);
+      this._dropFrontRow();
       this.audio.boom();
       this.haptics.forbidden();
       this.renderer.shake?.(0.18, 240);
@@ -212,8 +212,8 @@ export class Game {
           killedSet.add(cube.id);
           cube.dead = true;
           if (cube.isForbidden()) {
-            this.stage.pendingRowDrop++;
             this.stage.forbiddenDestroyed = true;
+            this._dropFrontRow();
           }
         }
       }
@@ -240,18 +240,25 @@ export class Game {
     this.stage.nextTickAt += ms;
   }
 
-  _applyForbiddenBlast(x, z) {
-    for (let dz = 0; dz < FORBIDDEN_HOLE_DEPTH; dz++) {
-      const hz = z - dz;
-      if (hz < 0) break;
-      if (this.grid.hasTile(x, hz)) {
-        this.grid.removeTile(x, hz);
-        this.stage.floorLost = true;
+  // Forbidden-destruction penalty (and visual echo of a normal cube
+  // running off the front): rip out the entire front row of the platform
+  // - surface tile + every underbody block in that column.
+  _dropFrontRow() {
+    const front = this.stage.frontEdge(this.grid);
+    if (front >= GRID_D) return;
+    let removed = 0;
+    for (let x = 0; x < GRID_W; x++) {
+      if (this.grid.hasTile(x, front)) {
+        this.grid.removeTile(x, front);
+        removed++;
       }
     }
-    // Any bomb whose center tile just vanished should go with it.
+    if (removed === 0) return;
+    this.stage.floorLost = true;
     this.grid.removeBombsWhere(b => !this.grid.hasTile(b.cx, b.cz));
     this.hud.setBombs(this.grid.bombs.length);
+    // Player standing on the dropped row goes with it.
+    if (this.player.tz === front) this._die("the row dropped with you");
   }
 
   // --- main loop ---
