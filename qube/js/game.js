@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=75";
-import { Player } from "./player.js?v=75";
-import { Stage } from "./stage.js?v=75";
-import { STAGES } from "./stages.js?v=75";
-import { GRID_W, GRID_D } from "./config.js?v=75";
+import { Grid } from "./grid.js?v=76";
+import { Player } from "./player.js?v=76";
+import { Stage } from "./stage.js?v=76";
+import { STAGES } from "./stages.js?v=76";
+import { GRID_W, GRID_D } from "./config.js?v=76";
 
 const STATE = {
   TITLE: "title",
@@ -392,8 +392,8 @@ export class Game {
     // FAST_MAX_MULT over FAST_RAMP_MS of held time; releasing snaps back
     // to 1x. Rescale the remaining wait whenever it changes so the speed
     // shift is felt immediately.
-    const FAST_MAX_MULT = 4;
-    const FAST_RAMP_MS = 2000;
+    const FAST_MAX_MULT = 6;
+    const FAST_RAMP_MS = 4000;
     const wantFast = this.input.held.has("shift") || this.input.held.has("fast");
     let targetMult = 1;
     if (wantFast) {
