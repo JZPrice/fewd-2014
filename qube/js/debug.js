@@ -3,7 +3,7 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
-import { STAGES } from "./stages.js?v=66";
+import { STAGES } from "./stages.js?v=67";
 
 export class Debugger {
   constructor(game) {
@@ -36,7 +36,7 @@ export class Debugger {
             <div class="dbg-stat"><span>stage / wave</span><b id="dbg-sw">—</b></div>
             <div class="dbg-stat"><span>cubes left</span><b id="dbg-cubes">—</b></div>
             <div class="dbg-stat"><span>bombs</span><b id="dbg-bombs">—</b></div>
-            <div class="dbg-stat"><span>row drop pending</span><b id="dbg-drop">—</b></div>
+            <div class="dbg-stat"><span>drop queue</span><b id="dbg-drop">—</b></div>
             <div class="dbg-stat"><span>player</span><b id="dbg-player">—</b></div>
             <div class="dbg-stat"><span>mark</span><b id="dbg-mark">—</b></div>
             <div class="dbg-stat"><span>next tick</span><b id="dbg-next">—</b></div>
@@ -257,7 +257,7 @@ export class Debugger {
       `  speed:  ${(1000 / g.player.speed).toFixed(0)}ms/tile  (${g.player.speed.toFixed(1)} t/s)`,
       `  cam:    halflife=${g.renderer.followHalflife ?? 300}ms  lastShake=${g.renderer._lastShake ? `amp ${g.renderer._lastShake.amp.toFixed(2)} dur ${g.renderer._lastShake.durMs}ms` : "—"}`,
       `  pos:    (${g.player.gx.toFixed(2)}, ${g.player.gz.toFixed(2)})  tile: (${g.player.tx}, ${g.player.tz})  mark: ${g.grid.mark ? `(${g.grid.mark.x}, ${g.grid.mark.z})` : "—"}`,
-      `  drop:   pendingRowDrop=${s?.pendingRowDrop ?? 0}  forbiddenDestroyed=${s?.forbiddenDestroyed ?? false}  floorLost=${s?.floorLost ?? false}`,
+      `  drop:   queue=${g._dropQueue ?? 0}  dropPauseMs=${g.dropPauseMs}  forbiddenDestroyed=${s?.forbiddenDestroyed ?? false}  floorLost=${s?.floorLost ?? false}`,
       `  haptics: ${!hap ? "no engine" : !hap.supported ? "n/a" : hap.enabled ? "ON" : "off"}`,
       `  last vibe: ${hap?.lastPattern ? (Array.isArray(hap.lastPattern) ? "["+hap.lastPattern.join(",")+"]" : hap.lastPattern+"ms") + " -> " + hap.lastResult : "—"}`,
     ];
@@ -290,7 +290,7 @@ export class Debugger {
       $("dbg-sw").textContent = `${s.def.id} / ${s.waveIndex + 1}`;
       $("dbg-cubes").textContent = s.remainingCubes();
       $("dbg-bombs").textContent = g.grid.bombs.length;
-      $("dbg-drop").textContent = s.pendingRowDrop ?? 0;
+      $("dbg-drop").textContent = g._dropQueue ?? 0;
       $("dbg-tickms").textContent = `${s.tickMs}ms`;
       $("dbg-rollms").textContent = `${s.rollMs}ms`;
       const ep = s.extraPauseMs ?? (s.tickMs - s.rollMs);
