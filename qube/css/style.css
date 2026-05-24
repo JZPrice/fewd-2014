@@ -64,6 +64,23 @@ html, body {
   padding: 24px;
 }
 
+/* Title overlay: keep the center clear so the selected character is
+   visible in the scene behind, with the edges darker for text readability. */
+#title.overlay {
+  background:
+    radial-gradient(
+      ellipse 75% 55% at 50% 58%,
+      rgba(8, 8, 16, 0.05) 0%,
+      rgba(8, 8, 16, 0.4) 55%,
+      rgba(8, 8, 16, 0.88) 100%
+    );
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
+#title h1, #title .tagline, #title .controls, #title .prompt, #title .char-label, #title #char-name {
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+}
+
 .overlay.hidden { display: none; }
 
 .overlay h1 {
@@ -123,14 +140,13 @@ html, body {
   background: rgba(40, 50, 80, 0.55);
   border: 1px solid rgba(180, 200, 255, 0.3);
   color: #d8dff0;
-  font-size: 14px;
-  font-family: inherit;
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.char-arrow svg { width: 56%; height: 56%; }
 .char-arrow:active { background: rgba(120, 200, 255, 0.45); }
 
 .prompt {
