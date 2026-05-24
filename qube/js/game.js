@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=66";
-import { Player } from "./player.js?v=66";
-import { Stage } from "./stage.js?v=66";
-import { STAGES } from "./stages.js?v=66";
-import { GRID_W, GRID_D } from "./config.js?v=66";
+import { Grid } from "./grid.js?v=67";
+import { Player } from "./player.js?v=67";
+import { Stage } from "./stage.js?v=67";
+import { STAGES } from "./stages.js?v=67";
+import { GRID_W, GRID_D } from "./config.js?v=67";
 
 const STATE = {
   TITLE: "title",
@@ -31,6 +31,13 @@ export class Game {
     this.paused = false;
     this.stepRequested = false;
     this._pausedAt = 0;
+
+    // Front-row drop sequencer. Forbidden hits enqueue here; the queue
+    // fires one drop per `dropPauseMs`, suspending the tick clock so cubes
+    // don't keep marching forward between row drops.
+    this._dropQueue = 0;
+    this._dropNextAt = 0;
+    this.dropPauseMs = 1200;
 
     // The renderer staggers the row-drop animation cube-by-cube. Each time
     // a single cube transitions from waiting to falling, we want a thunk +
@@ -77,6 +84,8 @@ export class Game {
     this.player.reset(gw);
     this.renderer.clearAllCubes();
     this.renderer.resetFollow?.(this.player);
+    this._dropQueue = 0;
+    this._dropNextAt = 0;
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.setStage(def.id);
@@ -104,6 +113,8 @@ export class Game {
     this.player.reset(gw);
     this.renderer.clearAllCubes();
     this.renderer.resetFollow?.(this.player);
+    this._dropQueue = 0;
+    this._dropNextAt = 0;
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.hideGameOver();
@@ -119,6 +130,8 @@ export class Game {
     this.grid.clearMark();
     this.grid.clearBombs();
     this.renderer.clearAllCubes();
+    this._dropQueue = 0;
+    this._dropNextAt = 0;
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.setWave(this.stage.waveIndex + 1);
@@ -127,18 +140,6 @@ export class Game {
   }
 
   _onWaveCleared(now) {
-    // Resolve any deferred row drops from bomb-killed forbidden cubes.
-    const drops = this.stage.pendingRowDrop;
-    if (drops > 0) {
-      for (let i = 0; i < drops; i++) {
-        if (this.grid.removeBackRow()) this.stage.floorLost = true;
-      }
-      this.audio.boom();
-      this.haptics.rowDrop();
-      this.renderer.shake?.(0.16, 280);
-      this.hud.flash(`-${drops} ROW${drops > 1 ? "S" : ""}`, 1100);
-      this.stage.pendingRowDrop = 0;
-    }
     this.grid.clearBombs();
     this.hud.setBombs(0);
 
@@ -162,7 +163,7 @@ export class Game {
       this.hud.flash(restored ? "PERFECT  +ROW" : "PERFECT", 1200);
       this.audio.perfect();
       this.haptics.perfect();
-    } else if (drops === 0 && restoredFromForbidden === 0) {
+    } else if (restoredFromForbidden === 0) {
       this.hud.flash("CLEAR", 900);
     }
     if (this.stage.hasMoreWaves()) {
@@ -223,10 +224,7 @@ export class Game {
       this.hud.setBombs(this.grid.bombs.length);
     } else if (hit.isForbidden()) {
       this.stage.forbiddenDestroyed = true;
-      this._dropFrontRow();
-      this.audio.boom();
-      this.haptics.forbidden();
-      this.renderer.shake?.(0.18, 240);
+      this._requestFrontRowDrop(performance.now());
     } else {
       this.audio.capture();
       this.haptics.capture();
@@ -237,7 +235,7 @@ export class Game {
     this.grid.clearMark();
     this.hud.setCubes(this.stage.remainingCubes());
 
-    if (this.stage.isCleared()) this._onWaveCleared(performance.now());
+    if (this.stage.isCleared() && this._dropQueue === 0) this._onWaveCleared(performance.now());
   }
 
   // DETONATE: blow up every active bomb at once. Forbidden cubes caught in
@@ -249,6 +247,7 @@ export class Game {
     if (bombs.length === 0) return;
 
     const killedSet = new Set();
+    const now = performance.now();
     for (const bomb of bombs) {
       for (const cube of this.stage.cubes) {
         if (cube.dead || killedSet.has(cube.id)) continue;
@@ -257,7 +256,7 @@ export class Game {
           cube.dead = true;
           if (cube.isForbidden()) {
             this.stage.forbiddenDestroyed = true;
-            this._dropFrontRow();
+            this._requestFrontRowDrop(now);
           }
         }
       }
@@ -274,7 +273,7 @@ export class Game {
     }
     this.hud.setCubes(this.stage.remainingCubes());
 
-    if (this.stage.isCleared()) this._onWaveCleared(performance.now());
+    if (this.stage.isCleared() && this._dropQueue === 0) this._onWaveCleared(performance.now());
   }
 
   _extraPause() {
@@ -301,8 +300,24 @@ export class Game {
     this.stage.floorLost = true;
     this.grid.removeBombsWhere(b => !this.grid.hasTile(b.cx, b.cz));
     this.hud.setBombs(this.grid.bombs.length);
+    this.audio.boom();
+    this.haptics.forbidden();
+    this.renderer.shake?.(0.18, 240);
     // Player standing on the dropped row goes with it.
     if (this.player.tz === front) this._die("the row dropped with you");
+  }
+
+  // Sequence forbidden row drops: first drop fires immediately, additional
+  // drops queue up and fire one at a time with `dropPauseMs` between them.
+  // While the queue is non-empty the tick clock is suspended so cubes hold
+  // position between drops.
+  _requestFrontRowDrop(now) {
+    if (this._dropQueue === 0 && now >= this._dropNextAt) {
+      this._dropFrontRow();
+      this._dropNextAt = now + this.dropPauseMs;
+    } else {
+      this._dropQueue++;
+    }
   }
 
   // --- main loop ---
@@ -369,6 +384,18 @@ export class Game {
 
     if (this.paused && !this.stepRequested) return;
 
+    // Process the front-row drop queue: fire the next pending drop once the
+    // pause window has elapsed. While drops are pending, push the next tick
+    // forward so cubes don't keep marching during the sequence.
+    if (this._dropQueue > 0 && now >= this._dropNextAt) {
+      this._dropFrontRow();
+      this._dropQueue--;
+      this._dropNextAt = now + this.dropPauseMs;
+    }
+    if (this._dropQueue > 0) {
+      this.stage.nextTickAt = Math.max(this.stage.nextTickAt, this._dropNextAt + 50);
+    }
+
     if (this.stepRequested) {
       this.stepRequested = false;
       this.stage.nextTickAt = now; // force immediate tick this frame
@@ -395,7 +422,7 @@ export class Game {
         this._die("fell through the floor"); return;
       }
 
-      if (this.stage.isCleared()) {
+      if (this.stage.isCleared() && this._dropQueue === 0) {
         this._onWaveCleared(now);
         return;
       }
@@ -408,8 +435,9 @@ export class Game {
         cube.fallingOff = false;
       }
     }
-    // Wave can clear once the last falling cube has finished its animation.
-    if (this.stage.isCleared()) {
+    // Wave can clear once the last falling cube has finished its animation
+    // AND the front-row drop queue has drained.
+    if (this.stage.isCleared() && this._dropQueue === 0) {
       this._onWaveCleared(now);
       return;
     }
