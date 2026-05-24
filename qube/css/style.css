@@ -81,6 +81,21 @@ html, body {
   margin-bottom: 8px;
 }
 
+/* Title-specific: pixelated blackletter, tighter tracking + bigger size
+   to make the chunky pixels read. */
+#title h1 {
+  font-family: "Jacquard 24", "Helvetica Neue", serif;
+  font-size: clamp(72px, 16vw, 160px);
+  letter-spacing: 0.04em;
+  font-weight: 400;
+  line-height: 0.95;
+  color: #f4e8c8;
+  text-shadow:
+    0 0 24px rgba(255, 210, 120, 0.35),
+    0 4px 0 rgba(0, 0, 0, 0.6);
+  margin-bottom: 4px;
+}
+
 .tagline {
   color: #7a87b5;
   letter-spacing: 0.3em;
