@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=93";
-import { Player } from "./player.js?v=93";
-import { Stage } from "./stage.js?v=93";
-import { STAGES } from "./stages.js?v=93";
-import { GRID_W, GRID_D } from "./config.js?v=93";
+import { Grid } from "./grid.js?v=94";
+import { Player } from "./player.js?v=94";
+import { Stage } from "./stage.js?v=94";
+import { STAGES } from "./stages.js?v=94";
+import { GRID_W, GRID_D } from "./config.js?v=94";
 
 const STATE = {
   TITLE: "title",
@@ -249,7 +249,17 @@ export class Game {
       this.audio.advCharge();
       this.haptics.bombPlace();
       this.renderer.shake?.(0.05, 120);
-      this.renderer.spawnBombAreaGhost?.(m.x, m.z);
+      // Flash a red aura on every cube already sitting inside the new
+      // bomb's 3x3 so the player can see the blast zone at a glance.
+      const auraIds = [];
+      for (const cube of this.stage.cubes) {
+        if (cube.dead || cube.fallingOff) continue;
+        if (cube.waveIndex !== this.stage.waveIndex) continue;
+        if (Math.abs(cube.gx - m.x) <= 1 && Math.abs(cube.gz - m.z) <= 1) {
+          auraIds.push(cube.id);
+        }
+      }
+      this.renderer.spawnBombAuraOnCubes?.(auraIds);
       this.hud.setBombs(this.grid.bombs.length);
     } else if (hit.isForbidden()) {
       this.stage.forbiddenDestroyed = true;
