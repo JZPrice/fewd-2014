@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=56";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=57";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -90,7 +90,7 @@ export class Renderer {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(COLORS.ground);
-    this.scene.fog = new THREE.Fog(COLORS.ground, 18, 70);
+    this.scene.fog = new THREE.Fog(COLORS.ground, 40, 140);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -239,6 +239,14 @@ export class Renderer {
       }
     }
     inst.instanceMatrix.needsUpdate = true;
+    // Three.js's InstancedMesh frustum-culls using only the geometry's
+    // bounding sphere (a unit-cube sphere at origin). With 36 layers
+    // extending to y=-37, that sphere can fall outside the camera frustum
+    // when the camera looks downward, killing the entire mesh. Disable
+    // culling outright, and also compute a real bounding box over all
+    // instances so debug tools see the right extents.
+    inst.frustumCulled = false;
+    inst.computeBoundingSphere();
     this.platformBody = inst;
     this._underbodyMesh = inst;
     this._underbodyLayers = LAYERS;
