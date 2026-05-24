@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=86";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=87";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -703,7 +703,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=86", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=87", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -732,18 +732,17 @@ export class Renderer {
         o.material.opacity = 0;
         o.castShadow = false;
         // Recolor the bomb body (was 'Black') to match the mark gradient
-        // so the ghost reads as part of the same visual language. Leave
-        // the fuse cap ('Grey') alone.
+        // so the ghost reads as a soft hint rather than a black object.
         if (o.material.name === "Black" && o.material.color) {
-          o.material.color = new THREE.Color(COLORS.mark);
-          if (o.material.emissive) o.material.emissive = new THREE.Color(COLORS.mark);
-          o.material.emissiveIntensity = 0.4;
+          o.material.color = new THREE.Color(0xe8eef8);
+          if (o.material.emissive) o.material.emissive = new THREE.Color(0xa8c0e0);
+          o.material.emissiveIntensity = 0.25;
         }
       }
     });
     const p = this._toWorld(gx, gz);
-    mesh.position.set(p.x, 0.55, p.z);
-    mesh.scale.setScalar(0.7);
+    mesh.position.set(p.x, 0.45, p.z);
+    mesh.scale.setScalar(0.45);
     this.scene.add(mesh);
     this._markGhost = { mesh, t0: performance.now(), duration: 1200 };
   }
@@ -768,7 +767,7 @@ export class Renderer {
       if (o.isMesh) o.material.opacity = alpha;
     });
     // Bob + spin slowly for some life.
-    mesh.position.y = 0.55 + Math.sin(t * Math.PI * 2) * 0.08;
+    mesh.position.y = 0.45 + Math.sin(t * Math.PI * 2) * 0.06;
     mesh.rotation.y = t * Math.PI * 0.8;
   }
 
