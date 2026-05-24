@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=97";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=98";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -78,6 +78,48 @@ function patchLambertNoise(mat, { scale = 1.4, strength = 0.22, space = "world" 
   mat.needsUpdate = true;
 }
 
+// Engraved-gold patch for the forbidden cubes. Layers a triangulated
+// stripe field on top of a warm tonal variation so each face reads as
+// an ancient gold relic with darker rune-like grooves cut into it.
+// Sharp step()-thresholded peaks give the marks a chiseled silhouette.
+function patchGoldGrooves(mat) {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        `#include <common>\n  varying vec3 vRunePos;`
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>\n  vRunePos = position;`
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>\n  varying vec3 vRunePos;`
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+          {
+            vec3 p = vRunePos * 5.5;
+            // Three offset stripe directions; thresholded into hard edges
+            // so the peaks read as engraved lines, not gradient bands.
+            float a = abs(sin(p.x + p.z * 0.42 + 1.3));
+            float b = abs(sin(p.y * 1.27 + p.x * 0.31 + 2.7));
+            float c = abs(sin((p.x + p.y + p.z) * 0.71 + 4.1));
+            float groove = step(0.93, max(a, max(b, c)));
+            // Slow warm tonal wash so the gold isn't a flat plate.
+            float warm = 0.86 + 0.14 * abs(sin(p.x * 2.1 + p.y * 1.7));
+            diffuseColor.rgb *= warm;
+            diffuseColor.rgb *= 1.0 - 0.55 * groove;
+          }`
+      );
+  };
+  mat.customProgramCacheKey = () => "goldgrooves";
+  mat.needsUpdate = true;
+}
+
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -124,18 +166,17 @@ export class Renderer {
     });
     patchLambertNoise(this._advantageMat, { scale: 2.6, strength: 0.22, space: "local" });
 
-    // Forbidden = polished black onyx. PBR-clearcoat gives the wet shine
-    // (specular pop from the dirLight, blurred reflections via the procedural
-    // env map built in _installEnvironment), and the noise patch breaks up
-    // the flat color with subtle marbled veining locked to each cube.
+    // Forbidden = engraved gold. High metalness + mid roughness gives a
+    // dimensional gold shine that catches the dirLight; the engraved
+    // pattern darkens runic grooves into the surface.
     this._forbiddenMat = new THREE.MeshPhysicalMaterial({
-      color: 0x0a0a0d,
-      roughness: 0.20,
-      metalness: 0.0,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
+      color: 0xd4a548,
+      roughness: 0.38,
+      metalness: 1.0,
+      clearcoat: 0.25,
+      clearcoatRoughness: 0.45,
     });
-    patchLambertNoise(this._forbiddenMat, { scale: 3.0, strength: 0.45, space: "local" });
+    patchGoldGrooves(this._forbiddenMat);
     this._installEnvironment();
     this._buildAbyssBackground();
 
@@ -757,7 +798,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=97", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=98", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
