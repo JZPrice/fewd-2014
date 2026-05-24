@@ -1,4 +1,4 @@
-import { GRID_W } from "./config.js?v=37";
+import { GRID_W } from "./config.js?v=38";
 
 // Continuous-position player. Position is stored as float grid coords
 // (gx, gz) and advanced each frame by a real velocity. tx / tz are the

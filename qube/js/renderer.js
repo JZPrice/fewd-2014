@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=37";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=38";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -353,7 +353,7 @@ export class Renderer {
       uniforms: {
         uColor:  { value: new THREE.Color(COLORS.mark) },
         uHeight: { value: h },
-        uSize:   { value: 220.0 },
+        uSize:   { value: 70.0 },
       },
       vertexShader: `
         varying float vYrel;
