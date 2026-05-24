@@ -55,8 +55,8 @@ export const STAGES = [
   },
   {
     id: 2,
-    tickMs: 1600,
-    rollMs: 800,
+    tickMs: 2000,
+    rollMs: 1000,
     gridW: 5,
     gridD: 20,
     waves: [
@@ -110,8 +110,8 @@ export const STAGES = [
   },
   {
     id: 3,
-    tickMs: 1200,
-    rollMs: 600,
+    tickMs: 2000,
+    rollMs: 1000,
     gridW: 6,
     gridD: 24,
     waves: [
