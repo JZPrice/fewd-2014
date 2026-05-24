@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=100";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=101";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -164,7 +164,10 @@ export class Renderer {
     this._buildMarkGhost();
 
     this.cubeMeshes = new Map();
-    this._cubeGeom = new THREE.BoxGeometry(TILE, TILE, TILE);
+    // Cubes shrunk to 0.96 * TILE so adjacent cubes show the same grout
+    // gap as adjacent floor tiles - a wall of dormant cubes reads as
+    // separate blocks instead of one welded slab.
+    this._cubeGeom = new THREE.BoxGeometry(TILE * 0.96, TILE * 0.96, TILE * 0.96);
 
     // Normal cubes match the floor's color + noise so they read as
     // 'chunks of the floor on the move' rather than distinct objects.
@@ -811,7 +814,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=100", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=101", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
