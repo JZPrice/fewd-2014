@@ -1,8 +1,8 @@
 // Stage layouts authored for this clone.
 // Each layout: array of strings, one per row. First string = furthest back
 // (spawns last), last string = closest to player (spawns first into view).
-// Columns: left -> right. Chars: N normal, F forbidden, A advantage, . empty.
-// Width must equal GRID_W (4).
+// Columns: left -> right. Chars: N normal, F forbidden, A advantage.
+// Every cell is filled - no gaps. Width must equal GRID_W (4).
 
 export const STAGES = [
   {
@@ -12,30 +12,30 @@ export const STAGES = [
     waves: [
       {
         layout: [
-          "N..N",
-          ".NN.",
-          "N..N",
-          ".NA.",
-        ],
-      },
-      {
-        layout: [
-          "NN.N",
-          "F..N",
-          "N.N.",
-          ".NNN",
-          "N.A.",
+          "NNNN",
+          "NNNN",
+          "NNNN",
+          "NNAN",
         ],
       },
       {
         layout: [
           "NNNN",
-          "F..F",
-          ".NN.",
-          "N..N",
-          ".AN.",
-          "N.NF",
-          ".NN.",
+          "FNNN",
+          "NNNN",
+          "NNNN",
+          "NNAN",
+        ],
+      },
+      {
+        layout: [
+          "NNNN",
+          "FNNF",
+          "NNNN",
+          "NNNN",
+          "NANN",
+          "NNNF",
+          "NNNN",
         ],
       },
     ],
@@ -47,25 +47,25 @@ export const STAGES = [
     waves: [
       {
         layout: [
-          "N.FN",
-          ".NN.",
-          "NF.N",
-          ".N.A",
-          "NN.N",
-          ".N.F",
-          "AN.N",
+          "NNFN",
+          "NNNN",
+          "NFNN",
+          "NNNA",
+          "NNNN",
+          "NNNF",
+          "ANNN",
         ],
       },
       {
         layout: [
           "NFNF",
-          ".N.N",
-          "N.N.",
-          "F.AF",
-          ".NN.",
+          "NNNN",
+          "NNNN",
+          "FNAF",
+          "NNNN",
           "NFNN",
-          ".NAN",
-          "FN.F",
+          "NNAN",
+          "FNNF",
         ],
       },
     ],
@@ -79,13 +79,13 @@ export const STAGES = [
         layout: [
           "NFNF",
           "FNFN",
-          "N.A.",
-          ".N.N",
-          "NF.F",
-          ".ANN",
-          "FN.N",
-          "N.FA",
-          ".NNF",
+          "NNAN",
+          "NNNN",
+          "NFNF",
+          "NANN",
+          "FNNN",
+          "NNFA",
+          "NNNF",
         ],
       },
     ],
