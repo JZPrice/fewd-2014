@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=82";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=83";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -109,6 +109,7 @@ export class Renderer {
     this._buildPlayer();
     this._buildMark();
     this._buildBombs();
+    this._buildMarkGhost();
 
     this.cubeMeshes = new Map();
     this._cubeGeom = new THREE.BoxGeometry(TILE, TILE, TILE);
@@ -693,6 +694,76 @@ export class Renderer {
     }
   }
 
+  // Ghost-bomb hint: a fading cartoony bomb that pops onto a tile the
+  // moment the player marks it, then fades out within a tick. The
+  // mark's blue gradient stays put; this is just a one-shot teaching
+  // overlay that says "marking a tile is what eventually plants /
+  // detonates something here". Single instance - one mark at a time.
+  _buildMarkGhost() {
+    this._markGhostBase = null;   // template loaded from GLB
+    this._markGhost = null;       // { mesh, t0, duration } when active
+
+    new GLTFLoader().load("assets/effects/bomb.glb", (gltf) => {
+      this._markGhostBase = gltf.scene;
+      this._markGhostBase.traverse((o) => {
+        if (o.isMesh) o.castShadow = false;
+      });
+    }, undefined, (err) => {
+      console.warn("mark ghost bomb failed to load:", err);
+    });
+  }
+
+  // Called whenever a fresh mark is placed. Clones the template into
+  // the scene, fades it in/out across ~1.2s while bobbing + rotating,
+  // then removes itself. Replacing a live ghost cancels the old one.
+  spawnMarkGhost(gx, gz) {
+    if (!this._markGhostBase) return;
+    if (this._markGhost) {
+      this.scene.remove(this._markGhost.mesh);
+      this._markGhost = null;
+    }
+    const mesh = this._markGhostBase.clone(true);
+    mesh.traverse((o) => {
+      if (o.isMesh) {
+        // Clone material so opacity edits don't leak to the template.
+        o.material = o.material.clone();
+        o.material.transparent = true;
+        o.material.depthWrite = false;
+        o.material.opacity = 0;
+        o.castShadow = false;
+      }
+    });
+    const p = this._toWorld(gx, gz);
+    mesh.position.set(p.x, 0.55, p.z);
+    mesh.scale.setScalar(0.7);
+    this.scene.add(mesh);
+    this._markGhost = { mesh, t0: performance.now(), duration: 1200 };
+  }
+
+  _animateMarkGhost() {
+    if (!this._markGhost) return;
+    const { mesh, t0, duration } = this._markGhost;
+    const t = (performance.now() - t0) / duration;
+    if (t >= 1) {
+      this.scene.remove(mesh);
+      this._markGhost = null;
+      return;
+    }
+    // Pop in fast, hold briefly, fade out. Peak alpha modest so it
+    // reads as a hint rather than a solid object.
+    const PEAK = 0.55;
+    let alpha;
+    if (t < 0.12)      alpha = (t / 0.12) * PEAK;
+    else if (t < 0.32) alpha = PEAK;
+    else               alpha = PEAK * (1 - (t - 0.32) / 0.68);
+    mesh.traverse((o) => {
+      if (o.isMesh) o.material.opacity = alpha;
+    });
+    // Bob + spin slowly for some life.
+    mesh.position.y = 0.55 + Math.sin(t * Math.PI * 2) * 0.08;
+    mesh.rotation.y = t * Math.PI * 0.8;
+  }
+
   _buildBombs() {
     // Pool of up to N bomb visuals — each is a floating tetrahedron above its
     // tile plus a 3x3 ring of subtle red tile overlays showing the blast area.
@@ -1112,6 +1183,7 @@ export class Renderer {
 
   step(dt) {
     this._animateFloorDrops(dt);
+    this._animateMarkGhost();
     if (this._mixer) this._mixer.update(dt);
     if (this._lavaUniforms) this._lavaUniforms.uTime.value += dt;
   }

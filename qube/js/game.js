@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=82";
-import { Player } from "./player.js?v=82";
-import { Stage } from "./stage.js?v=82";
-import { STAGES } from "./stages.js?v=82";
-import { GRID_W, GRID_D } from "./config.js?v=82";
+import { Grid } from "./grid.js?v=83";
+import { Player } from "./player.js?v=83";
+import { Stage } from "./stage.js?v=83";
+import { STAGES } from "./stages.js?v=83";
+import { GRID_W, GRID_D } from "./config.js?v=83";
 
 const STATE = {
   TITLE: "title",
@@ -214,6 +214,7 @@ export class Game {
     if (this.grid.setMark(tx, tz)) {
       this.audio.mark();
       this.haptics.mark();
+      this.renderer.spawnMarkGhost?.(tx, tz);
     }
   }
 
