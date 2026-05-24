@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=83";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=84";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -725,12 +725,20 @@ export class Renderer {
     const mesh = this._markGhostBase.clone(true);
     mesh.traverse((o) => {
       if (o.isMesh) {
-        // Clone material so opacity edits don't leak to the template.
+        // Clone material so opacity/color edits don't leak to the template.
         o.material = o.material.clone();
         o.material.transparent = true;
         o.material.depthWrite = false;
         o.material.opacity = 0;
         o.castShadow = false;
+        // Recolor the bomb body (was 'Black') to match the mark gradient
+        // so the ghost reads as part of the same visual language. Leave
+        // the fuse cap ('Grey') alone.
+        if (o.material.name === "Black" && o.material.color) {
+          o.material.color = new THREE.Color(COLORS.mark);
+          if (o.material.emissive) o.material.emissive = new THREE.Color(COLORS.mark);
+          o.material.emissiveIntensity = 0.4;
+        }
       }
     });
     const p = this._toWorld(gx, gz);
