@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=73";
-import { Player } from "./player.js?v=73";
-import { Stage } from "./stage.js?v=73";
-import { STAGES } from "./stages.js?v=73";
-import { GRID_W, GRID_D } from "./config.js?v=73";
+import { Grid } from "./grid.js?v=74";
+import { Player } from "./player.js?v=74";
+import { Stage } from "./stage.js?v=74";
+import { STAGES } from "./stages.js?v=74";
+import { GRID_W, GRID_D } from "./config.js?v=74";
 
 const STATE = {
   TITLE: "title",
@@ -41,6 +41,10 @@ export class Game {
     // Long enough to cover the full crumble of a 6-wide row (~3s): 2s of
     // L->R column stagger + ~1s of gravity-fall before the tiles reap.
     this.dropPauseMs = 2200;
+
+    // Timestamp the FAST button / shift was first pressed for the current
+    // hold. 0 = not held. Used by _updatePlaying to ramp speedMultiplier.
+    this._fastHeldT0 = 0;
 
     // The renderer staggers the row-drop animation cube-by-cube. Each time
     // a single cube transitions from waiting to falling, we want a thunk +
@@ -384,12 +388,23 @@ export class Game {
     this.player.update(dt, now, this.grid, this.stage);
 
     // Fast-forward: hold SHIFT (kbd) or the on-screen FAST button to make
-    // blocks tick + roll 2x faster. Rescale the remaining wait when the
-    // multiplier changes so the user feels it instantly.
+    // blocks tick + roll faster. Multiplier ramps from 1x at press to
+    // FAST_MAX_MULT over FAST_RAMP_MS of held time; releasing snaps back
+    // to 1x. Rescale the remaining wait whenever it changes so the speed
+    // shift is felt immediately.
+    const FAST_MAX_MULT = 4;
+    const FAST_RAMP_MS = 2000;
     const wantFast = this.input.held.has("shift") || this.input.held.has("fast");
-    const targetMult = wantFast ? 2 : 1;
+    let targetMult = 1;
+    if (wantFast) {
+      if (this._fastHeldT0 === 0) this._fastHeldT0 = now;
+      const u = Math.min(1, (now - this._fastHeldT0) / FAST_RAMP_MS);
+      targetMult = 1 + u * (FAST_MAX_MULT - 1);
+    } else {
+      this._fastHeldT0 = 0;
+    }
     const oldMult = this.stage.speedMultiplier;
-    if (oldMult !== targetMult) {
+    if (Math.abs(oldMult - targetMult) > 0.001) {
       const remaining = Math.max(0, this.stage.nextTickAt - now);
       this.stage.nextTickAt = now + remaining * (oldMult / targetMult);
       this.stage.speedMultiplier = targetMult;
