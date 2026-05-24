@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=68";
-import { Player } from "./player.js?v=68";
-import { Stage } from "./stage.js?v=68";
-import { STAGES } from "./stages.js?v=68";
-import { GRID_W, GRID_D } from "./config.js?v=68";
+import { Grid } from "./grid.js?v=69";
+import { Player } from "./player.js?v=69";
+import { Stage } from "./stage.js?v=69";
+import { STAGES } from "./stages.js?v=69";
+import { GRID_W, GRID_D } from "./config.js?v=69";
 
 const STATE = {
   TITLE: "title",
@@ -32,12 +32,15 @@ export class Game {
     this.stepRequested = false;
     this._pausedAt = 0;
 
-    // Front-row drop sequencer. Forbidden hits enqueue here; the queue
-    // fires one drop per `dropPauseMs`, suspending the tick clock so cubes
-    // don't keep marching forward between row drops.
+    // Front-row drop sequencer. Forbidden hits and normal-cube fall-offs
+    // enqueue here; the queue fires one drop per `dropPauseMs`, suspending
+    // the tick clock AND freezing rolling cubes so the platform crumbles
+    // visibly before anything else moves.
     this._dropQueue = 0;
     this._dropNextAt = 0;
-    this.dropPauseMs = 1200;
+    // Long enough to cover the full crumble of a 6-wide row (~3s): 2s of
+    // L->R column stagger + ~1s of gravity-fall before the tiles reap.
+    this.dropPauseMs = 2200;
 
     // The renderer staggers the row-drop animation cube-by-cube. Each time
     // a single cube transitions from waiting to falling, we want a thunk +
@@ -235,7 +238,7 @@ export class Game {
     this.grid.clearMark();
     this.hud.setCubes(this.stage.remainingCubes());
 
-    if (this.stage.isCleared() && this._dropQueue === 0) this._onWaveCleared(performance.now());
+    if (this.stage.isCleared() && this._dropQueue === 0 && performance.now() >= this._dropNextAt) this._onWaveCleared(performance.now());
   }
 
   // DETONATE: blow up every active bomb at once. Forbidden cubes caught in
@@ -273,7 +276,7 @@ export class Game {
     }
     this.hud.setCubes(this.stage.remainingCubes());
 
-    if (this.stage.isCleared() && this._dropQueue === 0) this._onWaveCleared(performance.now());
+    if (this.stage.isCleared() && this._dropQueue === 0 && performance.now() >= this._dropNextAt) this._onWaveCleared(performance.now());
   }
 
   _extraPause() {
@@ -385,15 +388,22 @@ export class Game {
     if (this.paused && !this.stepRequested) return;
 
     // Process the front-row drop queue: fire the next pending drop once the
-    // pause window has elapsed. While drops are pending, push the next tick
-    // forward so cubes don't keep marching during the sequence.
+    // pause window has elapsed. While the sequence is in flight (queue has
+    // items, OR we're inside the cool-down after the last drop so the row
+    // has time to fully crumble), suspend the tick clock AND freeze any
+    // cubes mid-roll so the only thing that moves is the player.
     if (this._dropQueue > 0 && now >= this._dropNextAt) {
       this._dropFrontRow();
       this._dropQueue--;
       this._dropNextAt = now + this.dropPauseMs;
     }
-    if (this._dropQueue > 0) {
+    const dropsInFlight = this._dropQueue > 0 || now < this._dropNextAt;
+    if (dropsInFlight) {
       this.stage.nextTickAt = Math.max(this.stage.nextTickAt, this._dropNextAt + 50);
+      const dtMs = dt * 1000;
+      for (const cube of this.stage.cubes) {
+        if (cube.roll) cube.roll.t0 += dtMs;
+      }
     }
 
     if (this.stepRequested) {
@@ -420,7 +430,7 @@ export class Game {
         this._die("fell through the floor"); return;
       }
 
-      if (this.stage.isCleared() && this._dropQueue === 0) {
+      if (this.stage.isCleared() && this._dropQueue === 0 && performance.now() >= this._dropNextAt) {
         this._onWaveCleared(now);
         return;
       }
@@ -435,7 +445,7 @@ export class Game {
     }
     // Wave can clear once the last falling cube has finished its animation
     // AND the front-row drop queue has drained.
-    if (this.stage.isCleared() && this._dropQueue === 0) {
+    if (this.stage.isCleared() && this._dropQueue === 0 && performance.now() >= this._dropNextAt) {
       this._onWaveCleared(now);
       return;
     }
