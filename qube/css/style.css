@@ -64,21 +64,12 @@ html, body {
   padding: 24px;
 }
 
-/* Title overlay: keep the center clear so the selected character is
-   visible in the scene behind, with the edges darker for text readability. */
+/* Title overlay: subtle blur backdrop. The preview canvas inside the
+   character selector is the focal visual for the selected character. */
 #title.overlay {
-  background:
-    radial-gradient(
-      ellipse 75% 55% at 50% 58%,
-      rgba(8, 8, 16, 0.05) 0%,
-      rgba(8, 8, 16, 0.4) 55%,
-      rgba(8, 8, 16, 0.88) 100%
-    );
-  backdrop-filter: blur(1px);
-  -webkit-backdrop-filter: blur(1px);
-}
-#title h1, #title .tagline, #title .controls, #title .prompt, #title .char-label, #title #char-name {
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+  background: rgba(8, 8, 16, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .overlay.hidden { display: none; }
@@ -110,7 +101,19 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+#char-preview-canvas {
+  width: 220px;
+  height: 260px;
+  display: block;
+  background: transparent;
+  /* subtle radial vignette behind the character to anchor it visually */
+  background-image: radial-gradient(
+    ellipse 60% 45% at 50% 70%,
+    rgba(120, 160, 220, 0.10) 0%,
+    rgba(0, 0, 0, 0) 70%
+  );
 }
 .char-label {
   font-size: 10px;
