@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=101";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=102";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -155,6 +155,11 @@ export class Renderer {
     this.camera.position.set(0, this._baseCamY, this._baseCamZ);
     this.camera.lookAt(0, -3.5, this._lookZ);
 
+    // Inset factor shared by floor tiles, cubes, and underbody columns -
+    // see GROUT_INSET in config. Held as an instance field so the debug
+    // panel can retune it at runtime via setGroutInset.
+    this.groutInset = GROUT_INSET;
+
     this._buildLights();
     this._buildPlatformBody();
     this._buildFloor();
@@ -164,10 +169,7 @@ export class Renderer {
     this._buildMarkGhost();
 
     this.cubeMeshes = new Map();
-    // Cubes shrunk to 0.96 * TILE so adjacent cubes show the same grout
-    // gap as adjacent floor tiles - a wall of dormant cubes reads as
-    // separate blocks instead of one welded slab.
-    this._cubeGeom = new THREE.BoxGeometry(TILE * 0.96, TILE * 0.96, TILE * 0.96);
+    this._cubeGeom = new THREE.BoxGeometry(TILE * this.groutInset, TILE * this.groutInset, TILE * this.groutInset);
 
     // Normal cubes match the floor's color + noise so they read as
     // 'chunks of the floor on the move' rather than distinct objects.
@@ -236,6 +238,40 @@ export class Renderer {
   // Trigger a damped jitter on the camera. If a stronger shake is already
   // in flight, the new request is ignored so big events aren't overridden
   // by trailing small ones.
+  // Resize the grout inset at runtime: regenerates the three geometry
+  // pools (cubes, floor tiles, underbody columns) and re-assigns them
+  // to every existing mesh. The old geometries are disposed.
+  setGroutInset(v) {
+    v = Math.max(0.85, Math.min(1.0, v));
+    if (Math.abs(v - this.groutInset) < 0.0005) return;
+    this.groutInset = v;
+    const size = TILE * v;
+    const oldCube = this._cubeGeom;
+    this._cubeGeom = new THREE.BoxGeometry(size, size, size);
+    for (const entry of this.cubeMeshes.values()) {
+      entry.mesh.geometry = this._cubeGeom;
+    }
+    if (oldCube) oldCube.dispose();
+    const oldFloor = this._floorGeom;
+    this._floorGeom = new THREE.BoxGeometry(size, size, size);
+    if (this.floorMeshes) {
+      for (let x = 0; x < this.floorMeshes.length; x++) {
+        const col = this.floorMeshes[x];
+        if (!col) continue;
+        for (let z = 0; z < col.length; z++) {
+          if (col[z]) col[z].geometry = this._floorGeom;
+        }
+      }
+    }
+    if (oldFloor) oldFloor.dispose();
+    const oldUnder = this._underbodyGeom;
+    this._underbodyGeom = new THREE.BoxGeometry(size, size, size);
+    if (this._underbodyMeshes) {
+      for (const m of this._underbodyMeshes) m.geometry = this._underbodyGeom;
+    }
+    if (oldUnder) oldUnder.dispose();
+  }
+
   shake(amp, durMs) {
     const now = performance.now();
     if (now < this._shakeEnd && this._shakeAmp > amp) return;
@@ -340,7 +376,7 @@ export class Renderer {
     // gridW/gridD are hidden by setStageDimensions.
     const LAYERS = 7;
     const PER_LAYER = MAX_GRID_W * MAX_GRID_D;
-    const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
+    this._underbodyGeom = new THREE.BoxGeometry(TILE * this.groutInset, TILE * this.groutInset, TILE * this.groutInset);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
 
@@ -349,7 +385,7 @@ export class Renderer {
     const dummy = new THREE.Object3D();
     for (let layer = 0; layer < LAYERS; layer++) {
       const y = -TILE / 2 - (layer + 1) * TILE;
-      const inst = new THREE.InstancedMesh(geom, mat, PER_LAYER);
+      const inst = new THREE.InstancedMesh(this._underbodyGeom, mat, PER_LAYER);
       inst.castShadow = false;
       inst.receiveShadow = true;
       inst.frustumCulled = false;
@@ -524,14 +560,14 @@ export class Renderer {
     // Center at y=-0.5, so the top face is at y=0 (where the player walks).
     // Allocated for MAX dims; setStageDimensions hides tiles outside the
     // active stage's bounds and repositions visible ones.
-    const geo = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
+    this._floorGeom = new THREE.BoxGeometry(TILE * this.groutInset, TILE * this.groutInset, TILE * this.groutInset);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
     patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
     const REST_Y = -TILE / 2;
     for (let x = 0; x < MAX_GRID_W; x++) {
       this.floorMeshes[x] = [];
       for (let z = 0; z < MAX_GRID_D; z++) {
-        const m = new THREE.Mesh(geo, mat);
+        const m = new THREE.Mesh(this._floorGeom, mat);
         const p = this._toWorld(x, z);
         m.position.set(p.x, REST_Y, p.z);
         m.receiveShadow = true;
@@ -814,7 +850,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=101", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=102", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
