@@ -1,12 +1,87 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=38";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=39";
 
 export function gridToWorld(gx, gz) {
   return {
     x: (gx - (GRID_W - 1) / 2) * TILE,
     z: -gz * TILE,
   };
+}
+
+// Cheap value-noise + fbm. Shared by the Lambert noise patch and the
+// forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
+// fine for the cube count we ever render.
+const NOISE_GLSL = `
+  float n_hash(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  float vnoise(vec3 x) {
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(n_hash(i + vec3(0,0,0)), n_hash(i + vec3(1,0,0)), f.x),
+          mix(n_hash(i + vec3(0,1,0)), n_hash(i + vec3(1,1,0)), f.x), f.y),
+      mix(mix(n_hash(i + vec3(0,0,1)), n_hash(i + vec3(1,0,1)), f.x),
+          mix(n_hash(i + vec3(0,1,1)), n_hash(i + vec3(1,1,1)), f.x), f.y),
+      f.z);
+  }
+  float fbm3(vec3 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += a * vnoise(p);
+      p *= 2.03;
+      a *= 0.5;
+    }
+    return v;
+  }
+`;
+
+// Patch a MeshLambertMaterial so its diffuse is modulated by procedural
+// noise. World-space noise flows seamlessly across the floor / platform;
+// local-space noise stays locked to a rolling cube's geometry.
+function patchLambertNoise(mat, { scale = 1.4, strength = 0.22, space = "world" } = {}) {
+  const useLocal = space === "local";
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        `#include <common>\n  varying vec3 vNoisePos;`
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        ${useLocal
+          ? `vNoisePos = position;`
+          : `#ifdef USE_INSTANCING
+               vNoisePos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+             #else
+               vNoisePos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+             #endif`}`
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        varying vec3 vNoisePos;
+        ${NOISE_GLSL}`
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          float n = clamp(fbm3(vNoisePos * ${scale.toFixed(3)}), 0.0, 1.0);
+          float mod_ = (1.0 - ${(strength * 0.5).toFixed(3)}) + ${strength.toFixed(3)} * n;
+          diffuseColor.rgb *= mod_;
+        }`
+      );
+  };
+  mat.customProgramCacheKey = () => `noise|${scale}|${strength}|${space}`;
+  mat.needsUpdate = true;
 }
 
 export class Renderer {
@@ -37,16 +112,67 @@ export class Renderer {
 
     this.cubeMeshes = new Map();
     this._cubeGeom = new THREE.BoxGeometry(TILE, TILE, TILE);
+
     this._normalMat = new THREE.MeshLambertMaterial({ color: COLORS.normal });
-    this._forbiddenMat = new THREE.MeshLambertMaterial({
-      color: COLORS.forbidden,
-      emissive: COLORS.forbiddenAccent,
-      emissiveIntensity: 0.35,
-    });
+    patchLambertNoise(this._normalMat, { scale: 2.6, strength: 0.28, space: "local" });
+
     this._advantageMat = new THREE.MeshLambertMaterial({
       color: COLORS.advantage,
       emissive: COLORS.advantageAccent,
       emissiveIntensity: 0.5,
+    });
+    patchLambertNoise(this._advantageMat, { scale: 2.6, strength: 0.22, space: "local" });
+
+    // Animated lava for forbidden cubes. Domain-warped fbm with a time-driven
+    // flow; dark crust at low noise, hot orange/yellow at the peaks, rim glow
+    // on edges so the cube self-illuminates rather than relying on scene light.
+    this._lavaUniforms = {
+      uTime:  { value: 0 },
+      uCrust: { value: new THREE.Color(0x1a0604) },
+      uMid:   { value: new THREE.Color(0xb83a16) },
+      uHot:   { value: new THREE.Color(0xffd070) },
+    };
+    this._forbiddenMat = new THREE.ShaderMaterial({
+      uniforms: this._lavaUniforms,
+      vertexShader: `
+        varying vec3 vLocal;
+        varying vec3 vN;
+        varying vec3 vV;
+        void main() {
+          vLocal = position;
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vN = normalize(mat3(modelMatrix) * normal);
+          vV = normalize(cameraPosition - wp.xyz);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        ${NOISE_GLSL}
+        varying vec3 vLocal;
+        varying vec3 vN;
+        varying vec3 vV;
+        uniform float uTime;
+        uniform vec3 uCrust;
+        uniform vec3 uMid;
+        uniform vec3 uHot;
+        void main() {
+          vec3 q = vLocal * 2.2;
+          q.y -= uTime * 0.22;
+          vec3 warp = vec3(
+            fbm3(q + vec3(1.7, 9.2, 0.0)),
+            fbm3(q + vec3(8.3, 2.8, 0.0)),
+            fbm3(q + vec3(0.0, 4.4, 5.1))
+          );
+          float n = fbm3(q + warp * 0.6);
+          float crust = smoothstep(0.30, 0.55, n);
+          float hot   = smoothstep(0.55, 0.82, n);
+          vec3 col = mix(uCrust, uMid, crust);
+          col = mix(col, uHot, hot);
+          float fres = pow(1.0 - max(0.0, dot(vN, vV)), 2.5);
+          col += uHot * fres * 0.4;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
     });
 
     // Critically-damped spring state for the follow camera. Position is
@@ -130,6 +256,7 @@ export class Renderer {
     const COUNT = GRID_W * GRID_D * LAYERS;
     const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
+    patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
     const inst = new THREE.InstancedMesh(geom, mat, COUNT);
     inst.castShadow = false;
     inst.receiveShadow = true;
@@ -162,6 +289,7 @@ export class Renderer {
     // Center at y=-0.5, so the top face is at y=0 (where the player walks).
     const geo = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
+    patchLambertNoise(mat, { scale: 1.8, strength: 0.30, space: "world" });
     const REST_Y = -TILE / 2;
     for (let x = 0; x < GRID_W; x++) {
       this.floorMeshes[x] = [];
@@ -701,6 +829,7 @@ export class Renderer {
   step(dt) {
     this._animateFloorDrops(dt);
     if (this._mixer) this._mixer.update(dt);
+    if (this._lavaUniforms) this._lavaUniforms.uTime.value += dt;
   }
 
   render() {
