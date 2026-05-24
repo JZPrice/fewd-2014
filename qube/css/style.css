@@ -299,24 +299,37 @@ body.touch #touch-controls {
 .actions .act-bomb {
   position: absolute;
   right: 100%;
-  bottom: 10px;
-  margin-right: 14px;
-  width: 64px;
-  height: 64px;
+  bottom: 0;
+  margin-right: 18px;
+  width: 76px;
+  height: 76px;
 }
-/* Mark-then-fire: white circle with a black + that rotates to a red x on a
-   black background when a mark is placed. */
+/* NES-style chunky pressable buttons: thick colored ring, hard drop shadow
+   for a 3D rest, on press the button drops into the shadow. */
 .act-mark-fire {
   background: #f4f6fa;
   color: #0a0a12;
-  border-color: rgba(0, 0, 0, 0.35);
+  border: 4px solid #c8ccd6;
+  box-shadow:
+    0 5px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.10);
   display: flex; align-items: center; justify-content: center;
   padding: 0;
+  transition: transform 90ms ease, box-shadow 90ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
 }
 .act-mark-fire.is-fire {
   background: #0a0a12;
   color: #ff2818;
-  border-color: rgba(255, 40, 24, 0.55);
+  border-color: #5e0d0d;
+  box-shadow:
+    0 5px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -4px 0 rgba(255, 40, 24, 0.22);
+}
+.act-mark-fire.pressed {
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.10);
 }
 .act-mark-fire .mf-icon {
   width: 52%; height: 52%;
@@ -324,15 +337,24 @@ body.touch #touch-controls {
 }
 .act-mark-fire.is-fire .mf-icon { transform: rotate(45deg); }
 
-/* Bomb: black button, red triangle, only visible while bombs are placed. */
+/* Bomb satellite: same NES-style chunky pressable treatment. */
 .act-bomb {
   background: #0a0a12;
   color: #ff2818;
-  border-color: rgba(255, 40, 24, 0.55);
+  border: 4px solid #5e0d0d;
+  box-shadow:
+    0 5px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -3px 0 rgba(255, 40, 24, 0.22);
   display: flex; align-items: center; justify-content: center;
   padding: 0;
+  transition: transform 90ms ease, box-shadow 90ms ease, border-color 180ms ease;
 }
-.act-bomb.pressed { background: #1a0405; border-color: rgba(255, 140, 120, 0.8); }
+.act-bomb.pressed {
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -2px 0 rgba(255, 40, 24, 0.22);
+}
 .act-bomb .bomb-icon { width: 50%; height: 50%; }
 
 /* show/hide based on input mode */
@@ -347,7 +369,7 @@ body.touch .touch-only { display: block; }
   .joy-stick { width: 54px; height: 54px; }
   .actions { width: 88px; height: 88px; right: max(32px, calc(env(safe-area-inset-right) + 18px)); }
   .actions .act-mark-fire { width: 88px; height: 88px; }
-  .actions .act-bomb { width: 64px; height: 64px; margin-right: 12px; bottom: 10px; }
+  .actions .act-bomb { width: 68px; height: 68px; margin-right: 16px; bottom: 0; }
 }
 
 /* hide controls during title/gameover overlays */
