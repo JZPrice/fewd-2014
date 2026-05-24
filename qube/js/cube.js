@@ -1,4 +1,4 @@
-import { CUBE_TYPE } from "./config.js?v=80";
+import { CUBE_TYPE } from "./config.js?v=81";
 
 let nextId = 1;
 

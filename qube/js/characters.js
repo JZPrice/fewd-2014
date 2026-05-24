@@ -31,8 +31,9 @@ export const CHARACTERS = [
   { id: "rogue",     name: "Rogue",     file: "assets/characters/rogue.glb",     ...KAYKIT, yOffset: 0.26 },
   { id: "barbarian", name: "Barbarian", file: "assets/characters/barbarian.glb", ...KAYKIT },
   // KayKit Skeleton Minion - shares the Adventurers rig + clip names,
-  // so the KAYKIT shortcut works as-is.
-  { id: "skeleton", name: "Skeleton", file: "assets/characters/skeleton.glb", ...KAYKIT },
+  // so the KAYKIT shortcut works. Pivot is higher than the heroes', so
+  // override yOffset to plant the feet on the floor instead of hovering.
+  { id: "skeleton", name: "Skeleton", file: "assets/characters/skeleton.glb", ...KAYKIT, yOffset: 0 },
   // Quaternius goblin (CC0 via poly.pizza). Smaller stature than the
   // KayKit heroes - scale is tuned so the goblin reads as ~2/3 hero
   // height. Clip names use the model's piped armature-prefixed format.
