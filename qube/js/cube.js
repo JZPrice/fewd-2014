@@ -1,4 +1,4 @@
-import { CUBE_TYPE } from "./config.js?v=105";
+import { CUBE_TYPE } from "./config.js?v=106";
 
 let nextId = 1;
 
@@ -55,7 +55,7 @@ export class Cube {
   // Captured-death animation: cube is gameplay-dead immediately, but its
   // mesh stays visible while it sinks into the floor and tints red. Game
   // reaps the visual once the duration elapses.
-  startDissolving(now, durationMs = 600) {
+  startDissolving(now, durationMs = 200) {
     this.dissolving = true;
     this.dissolveT0 = now;
     this.dissolveDuration = durationMs;

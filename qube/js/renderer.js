@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=105";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=106";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -850,7 +850,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=105", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=106", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1242,7 +1242,6 @@ export class Renderer {
         // Tint to red and fade.
         if (!Renderer._DISSOLVE_RED) Renderer._DISSOLVE_RED = new THREE.Color(0xff2818);
         mesh.material.color.copy(mesh.userData.dissolveOrigColor).lerp(Renderer._DISSOLVE_RED, u);
-        mesh.material.opacity = 1.0 - u * 0.85;
       } else if (cube.fallingOff) {
         // Tumbling off the edge: continues forward in +Z while accelerating
         // downward in Y, rolling well past the 90 degree tip so it looks
