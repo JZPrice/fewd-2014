@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=89";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=90";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -137,7 +137,7 @@ export class Renderer {
     });
     patchLambertNoise(this._forbiddenMat, { scale: 3.0, strength: 0.45, space: "local" });
     this._installEnvironment();
-    this._buildLavaBackground();
+    this._buildAbyssBackground();
 
     // Critically-damped spring state for the follow camera. Position is
     // tracked separately from velocity so the spring is stable for any dt.
@@ -359,60 +359,104 @@ export class Renderer {
   // A wide animated lava plane far below the platform. Visible past the
   // platform edges and through any holes punched by the front-row drop, so
   // dropping a row literally drops you toward the molten floor.
-  _buildLavaBackground() {
-    this._lavaUniforms = {
-      uTime:  { value: 0 },
-      uCrust: { value: new THREE.Color(0x2a0a05) },
-      uMid:   { value: new THREE.Color(0xc04020) },
-      uHot:   { value: new THREE.Color(0xffe080) },
+  // Bottomless abyss + rising motes. Replaces the old lava plane: a deep
+  // dark floor far below and a swarm of pale particles drifting upward
+  // through the void, peaking in brightness around mid-height and fading
+  // off as they near the platform's level.
+  _buildAbyssBackground() {
+    // Deep floor — flat dark fill, far enough below that it never edges
+    // the camera. Keeps the silhouette clean.
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(300, 300, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0x04050b }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -14;
+    this.scene.add(floor);
+
+    // Rising motes.
+    const COUNT = 220;
+    const positions = new Float32Array(COUNT * 3);
+    const speeds = new Float32Array(COUNT);
+    const seeds = new Float32Array(COUNT);
+    const Y_BOTTOM = -10;
+    const Y_TOP = 4;
+    for (let i = 0; i < COUNT; i++) {
+      positions[i * 3]     = (Math.random() - 0.5) * 60;
+      positions[i * 3 + 1] = Y_BOTTOM + Math.random() * (Y_TOP - Y_BOTTOM);
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 60;
+      speeds[i] = 0.25 + Math.random() * 0.6;
+      seeds[i] = Math.random();
+    }
+    this._abyssParticleData = {
+      positions, speeds, seeds, count: COUNT, yBottom: Y_BOTTOM, yTop: Y_TOP,
     };
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("seed",     new THREE.BufferAttribute(seeds, 1));
     const mat = new THREE.ShaderMaterial({
-      uniforms: this._lavaUniforms,
+      uniforms: {
+        uSize:   { value: 60.0 },
+        uTime:   { value: 0 },
+      },
       vertexShader: `
-        varying vec3 vWorld;
+        attribute float seed;
+        varying float vY;
+        varying float vSeed;
+        uniform float uSize;
+        uniform float uTime;
         void main() {
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vWorld = wp.xyz;
-          gl_Position = projectionMatrix * viewMatrix * wp;
+          vY = position.y;
+          vSeed = seed;
+          // Tiny lateral drift so they don't rise in straight columns.
+          vec3 pos = position;
+          pos.x += sin(uTime * 0.35 + seed * 6.28) * 0.25;
+          pos.z += cos(uTime * 0.28 + seed * 6.28) * 0.25;
+          vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+          gl_PointSize = uSize * (0.6 + seed * 0.7) / max(0.1, -mv.z);
+          gl_Position = projectionMatrix * mv;
         }
       `,
       fragmentShader: `
-        ${NOISE_GLSL}
-        varying vec3 vWorld;
-        uniform float uTime;
-        uniform vec3 uCrust;
-        uniform vec3 uMid;
-        uniform vec3 uHot;
+        varying float vY;
+        varying float vSeed;
         void main() {
-          // Larger fbm features than the cube-scale lava so the bg reads as
-          // a sea of slow-moving flow rather than tight cracks.
-          vec3 q = vWorld * 0.18;
-          q.x += uTime * 0.05;
-          q.z -= uTime * 0.04;
-          vec3 warp = vec3(
-            fbm3(q + vec3(1.7, 9.2, 0.0)),
-            fbm3(q + vec3(8.3, 2.8, 0.0)),
-            fbm3(q + vec3(0.0, 4.4, 5.1))
-          );
-          float n = fbm3(q + warp * 0.8);
-          float crust = smoothstep(0.28, 0.55, n);
-          float hot   = smoothstep(0.55, 0.80, n);
-          vec3 col = mix(uCrust, uMid, crust);
-          col = mix(col, uHot, hot);
-          // Distance fade so the far horizon dissolves into the dark void.
-          float distFade = exp(-length(vWorld.xz) * 0.022);
-          col *= distFade;
-          gl_FragColor = vec4(col, 1.0);
+          vec2 c = gl_PointCoord - vec2(0.5);
+          float d = length(c);
+          if (d > 0.5) discard;
+          float soft = 1.0 - smoothstep(0.05, 0.5, d);
+          // Peak alpha mid-height, faint at extremes - feels like motes
+          // catching light only briefly as they pass through.
+          float h = (vY + 10.0) / 14.0;
+          float curve = smoothstep(0.0, 0.25, h) * (1.0 - smoothstep(0.7, 1.0, h));
+          // Cool blue-white tint with a touch of warm variance per mote.
+          vec3 col = mix(vec3(0.55, 0.72, 0.95), vec3(0.85, 0.90, 1.0), vSeed);
+          gl_FragColor = vec4(col, soft * curve * 0.75);
         }
       `,
-      side: THREE.DoubleSide,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
-    const geo = new THREE.PlaneGeometry(300, 300, 1, 1);
-    const plane = new THREE.Mesh(geo, mat);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -8.5;
-    this._lavaBg = plane;
-    this.scene.add(plane);
+    this._abyssParticles = new THREE.Points(geo, mat);
+    this.scene.add(this._abyssParticles);
+  }
+
+  _animateAbyssParticles(dt) {
+    if (!this._abyssParticleData || !this._abyssParticles) return;
+    const { positions, speeds, count, yBottom, yTop } = this._abyssParticleData;
+    for (let i = 0; i < count; i++) {
+      const yi = i * 3 + 1;
+      positions[yi] += speeds[i] * dt;
+      if (positions[yi] > yTop) {
+        // Wrap to bottom with fresh horizontal scatter.
+        positions[i * 3]     = (Math.random() - 0.5) * 60;
+        positions[yi]        = yBottom;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 60;
+      }
+    }
+    this._abyssParticles.geometry.attributes.position.needsUpdate = true;
+    this._abyssParticles.material.uniforms.uTime.value += dt;
   }
 
   _buildFloor() {
@@ -713,7 +757,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=89", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=90", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1208,7 +1252,7 @@ export class Renderer {
     this._animateFloorDrops(dt);
     this._animateMarkGhost();
     if (this._mixer) this._mixer.update(dt);
-    if (this._lavaUniforms) this._lavaUniforms.uTime.value += dt;
+    this._animateAbyssParticles(dt);
   }
 
   render() {

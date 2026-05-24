@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=89";
-import { Player } from "./player.js?v=89";
-import { Stage } from "./stage.js?v=89";
-import { STAGES } from "./stages.js?v=89";
-import { GRID_W, GRID_D } from "./config.js?v=89";
+import { Grid } from "./grid.js?v=90";
+import { Player } from "./player.js?v=90";
+import { Stage } from "./stage.js?v=90";
+import { STAGES } from "./stages.js?v=90";
+import { GRID_W, GRID_D } from "./config.js?v=90";
 
 const STATE = {
   TITLE: "title",
@@ -12,6 +12,12 @@ const STATE = {
   DEAD: "dead",
   WIN: "win",
 };
+
+// Hard cap on how many rows the platform can lose in a single stage.
+// Every call to _dropFrontRow increments the counter (resets per stage);
+// once it crosses this threshold the run ends. Without it, the player can
+// indefinitely retreat as cubes fall off the long preloaded platform.
+const MAX_ROWS_LOST = 5;
 
 export class Game {
   constructor({ renderer, input, audio, hud, haptics }) {
@@ -45,6 +51,9 @@ export class Game {
     // Timestamp the FAST button / shift was first pressed for the current
     // hold. 0 = not held. Used by _updatePlaying to ramp speedMultiplier.
     this._fastHeldT0 = 0;
+
+    // Per-stage row-loss tally; see MAX_ROWS_LOST.
+    this._stageRowsLost = 0;
 
     // The renderer staggers the row-drop animation cube-by-cube. Each time
     // a single cube transitions from waiting to falling, we want a thunk +
@@ -93,6 +102,7 @@ export class Game {
     this.renderer.resetFollow?.(this.player);
     this._dropQueue = 0;
     this._dropNextAt = 0;
+    this._stageRowsLost = 0;
     this.stage.spawnAllWaves();
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
@@ -123,6 +133,7 @@ export class Game {
     this.renderer.resetFollow?.(this.player);
     this._dropQueue = 0;
     this._dropNextAt = 0;
+    this._stageRowsLost = 0;
     this.stage.spawnAllWaves();
     // Kill cubes from any wave we skipped over so they don't sit as
     // walls in front of the jumped-to wave.
@@ -263,9 +274,14 @@ export class Game {
     const bombs = this.grid.bombs;
     if (bombs.length === 0) return;
 
+    // Process bombs as a BFS queue so green (advantage) cubes caught in
+    // a blast become new detonation epicenters, chaining a cascade until
+    // no new advantage cubes are hit.
     const killedSet = new Set();
     const now = performance.now();
-    for (const bomb of bombs) {
+    const bombQueue = [...bombs];
+    while (bombQueue.length > 0) {
+      const bomb = bombQueue.shift();
       for (const cube of this.stage.cubes) {
         if (cube.dead || killedSet.has(cube.id)) continue;
         if (cube.waveIndex !== this.stage.waveIndex) continue;
@@ -275,6 +291,9 @@ export class Game {
           if (cube.isForbidden()) {
             this.stage.forbiddenDestroyed = true;
             this._requestFrontRowDrop(now);
+          } else if (cube.isAdvantage()) {
+            // Chain: this green cube becomes a new 3x3 epicenter.
+            bombQueue.push({ cx: cube.gx, cz: cube.gz });
           }
         }
       }
@@ -303,26 +322,35 @@ export class Game {
 
   // Forbidden-destruction penalty (and visual echo of a normal cube
   // running off the front): rip out the entire front row of the platform
-  // - surface tile + every underbody block in that column.
+  // - surface tile + every underbody block in that column. Every call
+  // counts toward the stage's row-loss budget regardless of whether tiles
+  // were actually present; exceeding the budget ends the run.
   _dropFrontRow() {
+    this._stageRowsLost++;
     const front = this.stage.frontEdge(this.grid);
-    if (front >= this.grid.d) return;
     let removed = 0;
-    for (let x = 0; x < this.grid.w; x++) {
-      if (this.grid.hasTile(x, front)) {
-        this.grid.removeTile(x, front);
-        removed++;
+    if (front < this.grid.d) {
+      for (let x = 0; x < this.grid.w; x++) {
+        if (this.grid.hasTile(x, front)) {
+          this.grid.removeTile(x, front);
+          removed++;
+        }
       }
     }
-    if (removed === 0) return;
-    this.stage.floorLost = true;
-    this.grid.removeBombsWhere(b => !this.grid.hasTile(b.cx, b.cz));
-    this.hud.setBombs(this.grid.bombs.length);
-    this.audio.boom();
-    this.haptics.forbidden();
-    this.renderer.shake?.(0.18, 240);
+    if (removed > 0) {
+      this.stage.floorLost = true;
+      this.grid.removeBombsWhere(b => !this.grid.hasTile(b.cx, b.cz));
+      this.hud.setBombs(this.grid.bombs.length);
+      this.audio.boom();
+      this.haptics.forbidden();
+      this.renderer.shake?.(0.18, 240);
+    }
+    if (this._stageRowsLost >= MAX_ROWS_LOST) {
+      this._die("the floor caved in");
+      return;
+    }
     // Player standing on the dropped row goes with it.
-    if (this.player.tz === front) this._die("the row dropped with you");
+    if (removed > 0 && this.player.tz === front) this._die("the row dropped with you");
   }
 
   // Sequence forbidden row drops: first drop fires immediately, additional
