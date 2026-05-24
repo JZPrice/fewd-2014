@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=40";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=41";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -249,9 +249,10 @@ export class Renderer {
 
   _buildPlatformBody() {
     // Stack of GRID_W x GRID_D unit cubes - same size, color, and gap as
-    // the floor tiles above. Visually the platform reads as one giant
-    // column of identical blocks fading into fog. InstancedMesh keeps
-    // it to a single draw call.
+    // the floor tiles above. InstancedMesh keeps it to a single draw call.
+    // Instance ordering below is column-major-by-layer:
+    // index = layer * (GRID_W * GRID_D) + x * GRID_D + z, so we can step
+    // through all 18 instances of a single (x,z) column when it drops.
     const LAYERS = 18;
     const COUNT = GRID_W * GRID_D * LAYERS;
     const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
@@ -261,24 +262,59 @@ export class Renderer {
     inst.castShadow = false;
     inst.receiveShadow = true;
     const dummy = new THREE.Object3D();
-    let i = 0;
     for (let layer = 0; layer < LAYERS; layer++) {
-      // Floor tiles are centered at y=-0.5 (1-unit cubes with top at y=0),
-      // so the first underbody layer sits centered at y=-1.5, the next at
-      // y=-2.5, and so on.
       const y = -TILE / 2 - (layer + 1) * TILE;
       for (let x = 0; x < GRID_W; x++) {
         for (let z = 0; z < GRID_D; z++) {
           const p = gridToWorld(x, z);
           dummy.position.set(p.x, y, p.z);
           dummy.updateMatrix();
-          inst.setMatrixAt(i++, dummy.matrix);
+          const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
+          inst.setMatrixAt(idx, dummy.matrix);
         }
       }
     }
     inst.instanceMatrix.needsUpdate = true;
     this.platformBody = inst;
-    this.scene.add(inst);
+    this._underbodyMesh = inst;
+    this._underbodyLayers = LAYERS;
+    this._underbodyDummy = dummy;
+
+    // Per-column drop state. y is the current Y offset from rest (0 = at
+    // rest, negative while falling). dropDelay staggers the front row
+    // so it topples L->R rather than dropping as a slab.
+    this._underbodyDrop = [];
+    for (let x = 0; x < GRID_W; x++) {
+      this._underbodyDrop[x] = [];
+      for (let z = 0; z < GRID_D; z++) {
+        this._underbodyDrop[x][z] = { y: 0, vy: 0, dropping: false, dropDelay: 0, hidden: false };
+      }
+    }
+  }
+
+  // Push a single instance of the underbody to (worldX, baseY + ySlide, worldZ).
+  _setUnderbodyInstance(x, z, layer, ySlide) {
+    const baseY = -TILE / 2 - (layer + 1) * TILE;
+    const p = gridToWorld(x, z);
+    const d = this._underbodyDummy;
+    d.position.set(p.x, baseY + ySlide, p.z);
+    d.rotation.set(0, 0, 0);
+    d.scale.set(1, 1, 1);
+    d.updateMatrix();
+    const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
+    this._underbodyMesh.setMatrixAt(idx, d.matrix);
+  }
+
+  _hideUnderbodyColumn(x, z) {
+    const d = this._underbodyDummy;
+    d.scale.set(0, 0, 0);
+    d.position.set(0, -1000, 0);
+    d.rotation.set(0, 0, 0);
+    d.updateMatrix();
+    for (let layer = 0; layer < this._underbodyLayers; layer++) {
+      const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
+      this._underbodyMesh.setMatrixAt(idx, d.matrix);
+    }
   }
 
   _buildFloor() {
@@ -615,14 +651,23 @@ export class Renderer {
         const mesh = this.floorMeshes[x][z];
         const exists = grid.tiles[x][z];
         const ud = mesh.userData;
+        const col = this._underbodyDrop[x][z];
         if (exists) {
-          // Coming back: clear drop state and aim back at rest.
+          // Coming back: clear drop state and aim back at rest. Surface
+          // tile and the column of underbody both spring/snap to rest.
           if (ud.targetY < ud.restY) {
             ud.vy = 0;
             ud.dropping = false;
           }
           mesh.visible = true;
           ud.targetY = ud.restY;
+          if (col.hidden || col.dropping || col.y !== 0) {
+            col.y = 0; col.vy = 0; col.dropping = false; col.dropDelay = 0; col.hidden = false;
+            for (let layer = 0; layer < this._underbodyLayers; layer++) {
+              this._setUnderbodyInstance(x, z, layer, 0);
+            }
+            this._underbodyMesh.instanceMatrix.needsUpdate = true;
+          }
         } else if (!ud.dropping) {
           // First frame this tile is removed - queue a staggered fall so
           // the row topples block-by-block L->R, and aim well below the
@@ -631,6 +676,12 @@ export class Renderer {
           ud.vy = 0;
           ud.dropping = true;
           ud.dropDelay = 0.09 * x;
+          // Mirror onto the underbody column at this (x, z).
+          col.dropping = true;
+          col.vy = 0;
+          col.y = 0;
+          col.dropDelay = 0.09 * x;
+          col.hidden = false;
         }
       }
     }
@@ -676,6 +727,35 @@ export class Renderer {
         }
       }
     }
+
+    // Underbody columns: each follows the same gravity/stagger as its
+    // surface tile, but moves all 18 instances of its (x,z) column as
+    // a single rigid block so the platform reads as one chunk shearing off.
+    let underbodyDirty = false;
+    for (let x = 0; x < GRID_W; x++) {
+      for (let z = 0; z < GRID_D; z++) {
+        const col = this._underbodyDrop[x][z];
+        if (!col.dropping) continue;
+        if (col.hidden) continue;
+        if (col.dropDelay > 0) {
+          col.dropDelay -= dt;
+          continue;
+        }
+        col.vy -= G * dt;
+        col.y += col.vy * dt;
+        if (col.y < -28) {
+          // Past the bottom of the visible underbody - collapse to scale 0.
+          this._hideUnderbodyColumn(x, z);
+          col.hidden = true;
+        } else {
+          for (let layer = 0; layer < this._underbodyLayers; layer++) {
+            this._setUnderbodyInstance(x, z, layer, col.y);
+          }
+        }
+        underbodyDirty = true;
+      }
+    }
+    if (underbodyDirty) this._underbodyMesh.instanceMatrix.needsUpdate = true;
   }
 
   syncCubes(cubes, now) {
