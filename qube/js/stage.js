@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=71";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=71";
+import { Cube } from "./cube.js?v=72";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=72";
 
 export class Stage {
   constructor(stageDef) {
@@ -29,6 +29,18 @@ export class Stage {
     this.speedMultiplier = 1;
   }
 
+  // Spawn edge for a given wave: the gz at which this wave's frontmost
+  // (closest-to-player) cube row sits. Wave N sits one layout-depth further
+  // back than wave N-1, so each successive wave gets a longer runway in
+  // front of it while the platform itself stays the same total depth.
+  _waveSpawnEdge(waveIndex) {
+    let depth = this.def.gridD ?? GRID_D;
+    for (let i = 0; i < waveIndex; i++) {
+      depth += this.def.waves[i].layout?.length ?? 0;
+    }
+    return depth;
+  }
+
   startWave(now) {
     const wave = this.def.waves[this.waveIndex];
     const layout = wave.layout;
@@ -38,16 +50,17 @@ export class Stage {
     this.pendingRowDrop = 0;
     this.forbiddenFellOff = 0;
     const rows = layout.length;
+    const spawnD = this._waveSpawnEdge(this.waveIndex);
     // First entry of layout = furthest back (last to arrive).
     // Last entry of layout = closest to player (first to arrive).
-    // Layout row (rows - 1 - i) sits at gz = this.gridD - 1 + i.
+    // Layout row (rows - 1 - i) sits at gz = spawnD - 1 + i.
     for (let i = 0; i < rows; i++) {
       const rowStr = layout[rows - 1 - i];
       for (let x = 0; x < this.gridW && x < rowStr.length; x++) {
         const ch = rowStr[x];
         if (ch === "." || ch === " ") continue;
         if (ch !== CUBE_TYPE.NORMAL && ch !== CUBE_TYPE.FORBIDDEN && ch !== CUBE_TYPE.ADVANTAGE) continue;
-        this.cubes.push(new Cube(ch, x, this.gridD - 1 + i));
+        this.cubes.push(new Cube(ch, x, spawnD - 1 + i));
       }
     }
     this.totalCubes = this.cubes.length;
