@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=62";
-import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=62";
+import { Cube } from "./cube.js?v=63";
+import { CUBE_TYPE, GRID_W, GRID_D, FORBIDDEN_HOLE_DEPTH } from "./config.js?v=63";
 
 export class Stage {
   constructor(stageDef) {
@@ -58,9 +58,18 @@ export class Stage {
   }
 
   cubeAt(x, z) {
+    const now = performance.now();
     for (const c of this.cubes) {
       if (c.dead || c.fallingOff) continue;
       if (c.gx === x && c.gz === z) return c;
+      // A rolling cube updates gz to the new tile the instant the tick
+      // fires, but its mesh takes the full roll duration to actually
+      // clear the old tile. Keep that old tile blocked so the player
+      // can't slip into a cube it's still visually rolling out of.
+      if (c.roll && c.gx === x && c.roll.fromZ === z) {
+        const u = (now - c.roll.t0) / c.roll.duration;
+        if (u < 1) return c;
+      }
     }
     return null;
   }
