@@ -74,30 +74,31 @@ html, body {
 
 .overlay.hidden { display: none; }
 
-/* All overlay titles + the mid-screen message flash use the pixelated
-   blackletter for a cohesive medieval game-UI feel. Tighter tracking +
-   bigger size to make the chunky pixels actually read; warm tint + soft
-   glow + hard drop shadow so they read as carved relics. */
+/* All overlay titles + the mid-screen message flash share the
+   blackletter for a cohesive medieval feel. Normal tracking, mixed
+   case (set in the markup) - Grenze Gotisch reads best that way.
+   Warm gold tint with a soft glow + shadow keeps the carved-relic
+   look. */
 .overlay h1,
 #message {
-  font-family: "Jacquard 24", "Helvetica Neue", serif;
-  letter-spacing: 0.04em;
-  font-weight: 400;
-  line-height: 0.95;
+  font-family: "Grenze Gotisch", "Times New Roman", serif;
+  letter-spacing: normal;
+  font-weight: 700;
+  line-height: 1;
   color: #f4e8c8;
   text-shadow:
-    0 0 24px rgba(255, 210, 120, 0.35),
-    0 4px 0 rgba(0, 0, 0, 0.6);
+    0 0 22px rgba(255, 210, 120, 0.32),
+    0 3px 6px rgba(0, 0, 0, 0.55);
 }
 
 .overlay h1 {
-  font-size: clamp(64px, 14vw, 140px);
+  font-size: clamp(56px, 12vw, 120px);
   margin-bottom: 8px;
 }
 
-/* The main game title is louder than secondary screens. */
+/* The main game title is a touch louder than secondary screens. */
 #title h1 {
-  font-size: clamp(72px, 16vw, 160px);
+  font-size: clamp(72px, 15vw, 150px);
   margin-bottom: 4px;
 }
 

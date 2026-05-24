@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=109";
-import { Player } from "./player.js?v=109";
-import { Stage } from "./stage.js?v=109";
-import { STAGES } from "./stages.js?v=109";
-import { GRID_W, GRID_D } from "./config.js?v=109";
+import { Grid } from "./grid.js?v=110";
+import { Player } from "./player.js?v=110";
+import { Stage } from "./stage.js?v=110";
+import { STAGES } from "./stages.js?v=110";
+import { GRID_W, GRID_D } from "./config.js?v=110";
 
 const STATE = {
   TITLE: "title",
@@ -110,7 +110,7 @@ export class Game {
     this.hud.setWave(this.stage.waveIndex + 1);
     this.hud.setCubes(this.stage.remainingCubes());
     this.hud.setBombs(0);
-    this.hud.flash(`STAGE ${def.id}`, 1000);
+    this.hud.flash(`Stage ${def.id}`, 1000);
   }
 
   // Debug-only: jump straight to a (stageIndex, waveIndex). Resets the
@@ -147,7 +147,7 @@ export class Game {
     this.hud.setWave(this.stage.waveIndex + 1);
     this.hud.setCubes(this.stage.remainingCubes());
     this.hud.setBombs(0);
-    this.hud.flash(`STAGE ${def.id} - WAVE ${waveIndex + 1}`, 900);
+    this.hud.flash(`Stage ${def.id} – Wave ${waveIndex + 1}`, 900);
   }
 
   _beginNextWave(now) {
@@ -179,18 +179,18 @@ export class Game {
     }
     this.stage.forbiddenFellOff = 0;
     if (restoredFromForbidden > 0) {
-      this.hud.flash(`+${restoredFromForbidden} ROW${restoredFromForbidden > 1 ? "S" : ""}`, 1100);
+      this.hud.flash(`+${restoredFromForbidden} row${restoredFromForbidden > 1 ? "s" : ""}`, 1100);
       this.audio.perfect();
       this.haptics.rowDrop();
     }
 
     if (this.stage.perfect()) {
       const restored = this.grid.restoreBackRow();
-      this.hud.flash(restored ? "PERFECT  +ROW" : "PERFECT", 1200);
+      this.hud.flash(restored ? "Perfect  +row" : "Perfect", 1200);
       this.audio.perfect();
       this.haptics.perfect();
     } else if (restoredFromForbidden === 0) {
-      this.hud.flash("CLEAR", 900);
+      this.hud.flash("Clear", 900);
     }
 
     if (this.stage.hasMoreWaves()) {
@@ -202,7 +202,7 @@ export class Game {
     } else {
       this.state = STATE.WIN;
       this._intermissionUntil = now + 2500;
-      this.hud.flash("YOU WIN", 2500);
+      this.hud.flash("You win", 2500);
     }
   }
 
@@ -524,7 +524,7 @@ export class Game {
 
       if (events.rowsDropped > 0) {
         this.haptics.rowDrop();
-        this.hud.flash(`-${events.rowsDropped} ROW${events.rowsDropped > 1 ? "S" : ""}`, 900);
+        this.hud.flash(`-${events.rowsDropped} row${events.rowsDropped > 1 ? "s" : ""}`, 900);
         for (let i = 0; i < events.rowsDropped; i++) this._requestFrontRowDrop(now);
       }
 
