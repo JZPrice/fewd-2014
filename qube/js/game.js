@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=70";
-import { Player } from "./player.js?v=70";
-import { Stage } from "./stage.js?v=70";
-import { STAGES } from "./stages.js?v=70";
-import { GRID_W, GRID_D } from "./config.js?v=70";
+import { Grid } from "./grid.js?v=71";
+import { Player } from "./player.js?v=71";
+import { Stage } from "./stage.js?v=71";
+import { STAGES } from "./stages.js?v=71";
+import { GRID_W, GRID_D } from "./config.js?v=71";
 
 const STATE = {
   TITLE: "title",
@@ -75,10 +75,10 @@ export class Game {
 
   _beginStage(now) {
     const def = STAGES[this.stageIndex];
-    const gw = def.gridW ?? GRID_W;
-    const gd = def.gridD ?? GRID_D;
     this.stage = new Stage(def);
     this.stage.waveIndex = 0;
+    const gw = this.stage.gridW;
+    const gd = this.stage.gridD;
     // Reconfigure renderer floor/underbody for this stage's dims BEFORE the
     // grid/player reset so any helpers that read from the renderer pick up
     // the new centering.
@@ -107,10 +107,10 @@ export class Game {
     if (waveIndex < 0 || waveIndex >= def.waves.length) return;
     this.stageIndex = stageIndex;
     const now = performance.now();
-    const gw = def.gridW ?? GRID_W;
-    const gd = def.gridD ?? GRID_D;
     this.stage = new Stage(def);
     this.stage.waveIndex = waveIndex;
+    const gw = this.stage.gridW;
+    const gd = this.stage.gridD;
     this.renderer.setStageDimensions?.(gw, gd);
     this.grid.resize(gw, gd);
     this.player.reset(gw);
@@ -168,18 +168,6 @@ export class Game {
       this.haptics.perfect();
     } else if (restoredFromForbidden === 0) {
       this.hud.flash("CLEAR", 900);
-    }
-
-    // Runway bonus: the area the just-cleared wave's cubes occupied at
-    // spawn becomes permanent platform. waveDepth = layout.length rows
-    // tacked onto the back, preserving any holes in the existing tiles.
-    const justCleared = this.stage.def.waves[this.stage.waveIndex];
-    const grow = justCleared?.layout?.length ?? 0;
-    if (grow > 0) {
-      this.grid.extendDepth(grow);
-      this.stage.gridD = this.grid.d;
-      this.renderer.extendStageDepth?.(this.grid.d);
-      this.hud.flash(`+${grow} RUNWAY`, 1100);
     }
 
     if (this.stage.hasMoreWaves()) {
