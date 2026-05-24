@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=106";
-import { Player } from "./player.js?v=106";
-import { Stage } from "./stage.js?v=106";
-import { STAGES } from "./stages.js?v=106";
-import { GRID_W, GRID_D } from "./config.js?v=106";
+import { Grid } from "./grid.js?v=107";
+import { Player } from "./player.js?v=107";
+import { Stage } from "./stage.js?v=107";
+import { STAGES } from "./stages.js?v=107";
+import { GRID_W, GRID_D } from "./config.js?v=107";
 
 const STATE = {
   TITLE: "title",
@@ -213,7 +213,38 @@ export class Game {
     this.haptics.death();
     this.renderer.shake?.(0.30, 400);
     this.player.startFall(performance.now());
-    setTimeout(() => this.hud.showGameOver(reason), 700);
+    // Cave-in deaths follow an in-flight row drop whose crumble takes ~3s
+    // to play out. Cascade a few more rows for a dramatic collapse, and
+    // hold the GAME OVER overlay until the animation has actually been
+    // visible. Other deaths keep the snappy 700ms reveal.
+    let overlayDelay = 700;
+    if (reason === "the floor caved in") {
+      overlayDelay = 2400;
+      for (let i = 1; i <= 3; i++) {
+        setTimeout(() => this._cascadeDropRow(), i * 350);
+      }
+    }
+    setTimeout(() => this.hud.showGameOver(reason), overlayDelay);
+  }
+
+  // Direct row drop that bypasses the queue + row-loss counter - used by
+  // the cave-in cascade after state is already DEAD.
+  _cascadeDropRow() {
+    if (!this.stage) return;
+    const front = this.stage.frontEdge(this.grid);
+    if (front >= this.grid.d) return;
+    let removed = 0;
+    for (let x = 0; x < this.grid.w; x++) {
+      if (this.grid.hasTile(x, front)) {
+        this.grid.removeTile(x, front);
+        removed++;
+      }
+    }
+    if (removed > 0) {
+      this.audio.boom();
+      this.haptics.forbidden();
+      this.renderer.shake?.(0.16, 220);
+    }
   }
 
   // --- real-time actions ---
