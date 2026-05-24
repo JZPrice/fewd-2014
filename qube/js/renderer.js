@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=55";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=56";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -1044,11 +1044,11 @@ export class Renderer {
     // the camera sits. Smaller = tighter framing. Closer for narrower screens.
     let camY, followDZ, fov;
     if (aspect < 0.9) {
-      fov = 68; camY = 6.8; followDZ = 5.5;
+      fov = 68; camY = 7.2; followDZ = 8.0;
     } else if (aspect < 1.4) {
-      fov = 62; camY = 5.6; followDZ = 4.6;
+      fov = 62; camY = 6.0; followDZ = 6.8;
     } else {
-      fov = 58; camY = 4.8; followDZ = 4.0;
+      fov = 58; camY = 5.2; followDZ = 6.0;
     }
     this.camera.fov = fov;
     this._baseCamY = camY;
