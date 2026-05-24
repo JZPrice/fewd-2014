@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=91";
-import { Player } from "./player.js?v=91";
-import { Stage } from "./stage.js?v=91";
-import { STAGES } from "./stages.js?v=91";
-import { GRID_W, GRID_D } from "./config.js?v=91";
+import { Grid } from "./grid.js?v=92";
+import { Player } from "./player.js?v=92";
+import { Stage } from "./stage.js?v=92";
+import { STAGES } from "./stages.js?v=92";
+import { GRID_W, GRID_D } from "./config.js?v=92";
 
 const STATE = {
   TITLE: "title",
@@ -274,14 +274,13 @@ export class Game {
     const bombs = this.grid.bombs;
     if (bombs.length === 0) return;
 
-    // Process bombs as a BFS queue so green (advantage) cubes caught in
-    // a blast become new detonation epicenters, chaining a cascade until
-    // no new advantage cubes are hit.
+    // Single-shot detonation: each green cube caught in the blast plants
+    // a fresh bomb at its position. The player presses DETONATE again to
+    // chain through them - no auto-cascade.
     const killedSet = new Set();
     const now = performance.now();
-    const bombQueue = [...bombs];
-    while (bombQueue.length > 0) {
-      const bomb = bombQueue.shift();
+    const seededBombs = [];
+    for (const bomb of bombs) {
       for (const cube of this.stage.cubes) {
         if (cube.dead || killedSet.has(cube.id)) continue;
         if (cube.waveIndex !== this.stage.waveIndex) continue;
@@ -292,15 +291,17 @@ export class Game {
             this.stage.forbiddenDestroyed = true;
             this._requestFrontRowDrop(now);
           } else if (cube.isAdvantage()) {
-            // Chain: this green cube becomes a new 3x3 epicenter.
-            bombQueue.push({ cx: cube.gx, cz: cube.gz });
+            seededBombs.push({ x: cube.gx, z: cube.gz });
           }
         }
       }
     }
 
+    // Consume the bombs that just fired, then plant the seeded ones
+    // (each from a green cube caught in the blast).
     this.grid.clearBombs();
-    this.hud.setBombs(0);
+    for (const p of seededBombs) this.grid.addBomb(p.x, p.z);
+    this.hud.setBombs(this.grid.bombs.length);
 
     if (killedSet.size > 0) {
       this.audio.boom();
