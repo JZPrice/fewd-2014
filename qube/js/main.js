@@ -1,11 +1,11 @@
-import { Renderer } from "./renderer.js?v=42";
-import { Input } from "./input.js?v=42";
-import { AudioEngine } from "./audio.js?v=42";
-import { HUD } from "./hud.js?v=42";
-import { Game } from "./game.js?v=42";
-import { Debugger } from "./debug.js?v=42";
-import { Haptics } from "./haptics.js?v=42";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=42";
+import { Renderer } from "./renderer.js?v=43";
+import { Input } from "./input.js?v=43";
+import { AudioEngine } from "./audio.js?v=43";
+import { HUD } from "./hud.js?v=43";
+import { Game } from "./game.js?v=43";
+import { Debugger } from "./debug.js?v=43";
+import { Haptics } from "./haptics.js?v=43";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=43";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -102,6 +102,24 @@ document.querySelectorAll(".tbtn[data-hold]").forEach((btn) => {
 document.querySelectorAll(".tbtn[data-action]").forEach((btn) => {
   bindActionButton(btn, btn.dataset.action);
 });
+
+// Single mark-then-fire button. Pushes "mark" while no mark is placed, then
+// flips to push "trigger" once one is. The label / class toggle each frame
+// off game.grid.mark so the player always sees what the next tap will do.
+const markFireBtn = document.getElementById("mark-fire-btn");
+if (markFireBtn) {
+  const press = (e) => {
+    e.preventDefault();
+    markFireBtn.classList.add("pressed");
+    input.pushAction(game.grid.mark ? "trigger" : "mark");
+  };
+  const release = () => markFireBtn.classList.remove("pressed");
+  markFireBtn.addEventListener("pointerdown", press);
+  markFireBtn.addEventListener("pointerup", release);
+  markFireBtn.addEventListener("pointercancel", release);
+  markFireBtn.addEventListener("pointerleave", release);
+  markFireBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+}
 
 // Fast-forward button at top-center (hold to make blocks tick 2x faster).
 // Lives outside the thumb zone so the player can reach it without losing
@@ -248,6 +266,16 @@ refreshOverlayClass();
 function loop(now) {
   game.update(now);
   dbg.update();
+  if (markFireBtn) {
+    const fire = !!game.grid.mark;
+    const mode = fire ? "fire" : "mark";
+    if (markFireBtn.dataset.mode !== mode) {
+      markFireBtn.dataset.mode = mode;
+      markFireBtn.textContent = fire ? "FIRE" : "MARK";
+      markFireBtn.setAttribute("aria-label", mode);
+      markFireBtn.classList.toggle("is-fire", fire);
+    }
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
