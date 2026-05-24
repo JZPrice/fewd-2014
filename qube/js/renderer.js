@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=41";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=42";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -123,57 +124,20 @@ export class Renderer {
     });
     patchLambertNoise(this._advantageMat, { scale: 2.6, strength: 0.22, space: "local" });
 
-    // Animated lava for forbidden cubes. Domain-warped fbm with a time-driven
-    // flow; dark crust at low noise, hot orange/yellow at the peaks, rim glow
-    // on edges so the cube self-illuminates rather than relying on scene light.
-    this._lavaUniforms = {
-      uTime:  { value: 0 },
-      uCrust: { value: new THREE.Color(0x1a0604) },
-      uMid:   { value: new THREE.Color(0xb83a16) },
-      uHot:   { value: new THREE.Color(0xffd070) },
-    };
-    this._forbiddenMat = new THREE.ShaderMaterial({
-      uniforms: this._lavaUniforms,
-      vertexShader: `
-        varying vec3 vLocal;
-        varying vec3 vN;
-        varying vec3 vV;
-        void main() {
-          vLocal = position;
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vN = normalize(mat3(modelMatrix) * normal);
-          vV = normalize(cameraPosition - wp.xyz);
-          gl_Position = projectionMatrix * viewMatrix * wp;
-        }
-      `,
-      fragmentShader: `
-        ${NOISE_GLSL}
-        varying vec3 vLocal;
-        varying vec3 vN;
-        varying vec3 vV;
-        uniform float uTime;
-        uniform vec3 uCrust;
-        uniform vec3 uMid;
-        uniform vec3 uHot;
-        void main() {
-          vec3 q = vLocal * 2.2;
-          q.y -= uTime * 0.22;
-          vec3 warp = vec3(
-            fbm3(q + vec3(1.7, 9.2, 0.0)),
-            fbm3(q + vec3(8.3, 2.8, 0.0)),
-            fbm3(q + vec3(0.0, 4.4, 5.1))
-          );
-          float n = fbm3(q + warp * 0.6);
-          float crust = smoothstep(0.30, 0.55, n);
-          float hot   = smoothstep(0.55, 0.82, n);
-          vec3 col = mix(uCrust, uMid, crust);
-          col = mix(col, uHot, hot);
-          float fres = pow(1.0 - max(0.0, dot(vN, vV)), 2.5);
-          col += uHot * fres * 0.4;
-          gl_FragColor = vec4(col, 1.0);
-        }
-      `,
+    // Forbidden = polished black onyx. PBR-clearcoat gives the wet shine
+    // (specular pop from the dirLight, blurred reflections via the procedural
+    // env map built in _installEnvironment), and the noise patch breaks up
+    // the flat color with subtle marbled veining locked to each cube.
+    this._forbiddenMat = new THREE.MeshPhysicalMaterial({
+      color: 0x0a0a0d,
+      roughness: 0.20,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
     });
+    patchLambertNoise(this._forbiddenMat, { scale: 3.0, strength: 0.45, space: "local" });
+    this._installEnvironment();
+    this._buildLavaBackground();
 
     // Critically-damped spring state for the follow camera. Position is
     // tracked separately from velocity so the spring is stable for any dt.
@@ -315,6 +279,74 @@ export class Renderer {
       const idx = layer * (GRID_W * GRID_D) + x * GRID_D + z;
       this._underbodyMesh.setMatrixAt(idx, d.matrix);
     }
+  }
+
+  // Procedural neutral-room IBL so polished surfaces (onyx forbidden cubes)
+  // pick up subtle blurred reflections in addition to direct lighting.
+  _installEnvironment() {
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    this.scene.environment = env.texture;
+    pmrem.dispose();
+  }
+
+  // A wide animated lava plane far below the platform. Visible past the
+  // platform edges and through any holes punched by the front-row drop, so
+  // dropping a row literally drops you toward the molten floor.
+  _buildLavaBackground() {
+    this._lavaUniforms = {
+      uTime:  { value: 0 },
+      uCrust: { value: new THREE.Color(0x2a0a05) },
+      uMid:   { value: new THREE.Color(0xc04020) },
+      uHot:   { value: new THREE.Color(0xffe080) },
+    };
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this._lavaUniforms,
+      vertexShader: `
+        varying vec3 vWorld;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorld = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        ${NOISE_GLSL}
+        varying vec3 vWorld;
+        uniform float uTime;
+        uniform vec3 uCrust;
+        uniform vec3 uMid;
+        uniform vec3 uHot;
+        void main() {
+          // Larger fbm features than the cube-scale lava so the bg reads as
+          // a sea of slow-moving flow rather than tight cracks.
+          vec3 q = vWorld * 0.18;
+          q.x += uTime * 0.05;
+          q.z -= uTime * 0.04;
+          vec3 warp = vec3(
+            fbm3(q + vec3(1.7, 9.2, 0.0)),
+            fbm3(q + vec3(8.3, 2.8, 0.0)),
+            fbm3(q + vec3(0.0, 4.4, 5.1))
+          );
+          float n = fbm3(q + warp * 0.8);
+          float crust = smoothstep(0.28, 0.55, n);
+          float hot   = smoothstep(0.55, 0.80, n);
+          vec3 col = mix(uCrust, uMid, crust);
+          col = mix(col, uHot, hot);
+          // Distance fade so the far horizon dissolves into the dark void.
+          float distFade = exp(-length(vWorld.xz) * 0.022);
+          col *= distFade;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      side: THREE.DoubleSide,
+    });
+    const geo = new THREE.PlaneGeometry(300, 300, 1, 1);
+    const plane = new THREE.Mesh(geo, mat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = -25;
+    this._lavaBg = plane;
+    this.scene.add(plane);
   }
 
   _buildFloor() {
@@ -494,10 +526,9 @@ export class Renderer {
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
     });
     this.markMesh = new THREE.Mesh(geo, mat);
-    this.markMesh.renderOrder = 999;
     this.markMesh.visible = false;
     this.scene.add(this.markMesh);
 
@@ -546,10 +577,9 @@ export class Renderer {
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
     });
     this.markParticles = new THREE.Points(pgeo, pmat);
-    this.markParticles.renderOrder = 1000;
     this.markParticles.visible = false;
     this.scene.add(this.markParticles);
 
