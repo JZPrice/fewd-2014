@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=104";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=105";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -850,7 +850,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=104", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=105", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1234,10 +1234,10 @@ export class Renderer {
         }
         const u = cube.dissolveProgress(now);
         const p = this._toWorld(cube.gx, cube.gz);
-        // Sink into the floor + shrink + tilt slightly for "absorption" feel.
+        // Sink into the floor + slight tilt for "absorption" feel.
         pivot.position.set(p.x, -u * 1.2, p.z + TILE / 2);
         pivot.rotation.x = u * 0.35;
-        pivot.scale.setScalar(1.0 - u * 0.35);
+        pivot.scale.setScalar(1);
         mesh.position.set(0, 0.5, -0.5);
         // Tint to red and fade.
         if (!Renderer._DISSOLVE_RED) Renderer._DISSOLVE_RED = new THREE.Color(0xff2818);
