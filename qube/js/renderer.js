@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=60";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=61";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -90,7 +90,7 @@ export class Renderer {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(COLORS.ground);
-    this.scene.fog = new THREE.Fog(COLORS.ground, 25, 90);
+    this.scene.fog = new THREE.Fog(COLORS.ground, 15, 55);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -218,7 +218,7 @@ export class Renderer {
     // 48 instances per mesh is well within any known limit. Per layer the
     // instance index is x * GRID_D + z, so a single column maps to that
     // same instance index across all `_underbodyMeshes[layer]` meshes.
-    const LAYERS = 18;
+    const LAYERS = 7;
     const PER_LAYER = GRID_W * GRID_D;
     const geom = new THREE.BoxGeometry(TILE * 0.98, TILE * 0.98, TILE * 0.98);
     const mat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
@@ -347,7 +347,7 @@ export class Renderer {
     const geo = new THREE.PlaneGeometry(300, 300, 1, 1);
     const plane = new THREE.Mesh(geo, mat);
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -24;
+    plane.position.y = -8.5;
     this._lavaBg = plane;
     this.scene.add(plane);
   }
@@ -739,7 +739,7 @@ export class Renderer {
           // First frame this tile is removed - queue a staggered fall so
           // the row topples block-by-block L->R, and aim well below the
           // 18-layer underbody so it visibly plummets past the platform.
-          ud.targetY = ud.restY - 36;
+          ud.targetY = ud.restY - 22;
           ud.vy = 0;
           ud.dropping = true;
           ud.dropDelay = 0.09 * x;
@@ -777,7 +777,7 @@ export class Renderer {
           }
           // Hide only after the block has fallen clear of the underbody
           // (~18 units below rest). Anything earlier looks like it pops out.
-          if (m.position.y < ud.restY - 26) {
+          if (m.position.y < ud.restY - 14) {
             m.visible = false;
           }
         } else {
@@ -810,7 +810,7 @@ export class Renderer {
         }
         col.vy -= G * dt;
         col.y += col.vy * dt;
-        if (col.y < -30) {
+        if (col.y < -16) {
           // Past the bottom of the visible underbody - collapse to scale 0.
           this._hideUnderbodyColumn(x, z);
           col.hidden = true;
