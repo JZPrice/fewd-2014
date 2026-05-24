@@ -1,11 +1,11 @@
-import { Renderer } from "./renderer.js?v=45";
-import { Input } from "./input.js?v=45";
-import { AudioEngine } from "./audio.js?v=45";
-import { HUD } from "./hud.js?v=45";
-import { Game } from "./game.js?v=45";
-import { Debugger } from "./debug.js?v=45";
-import { Haptics } from "./haptics.js?v=45";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=45";
+import { Renderer } from "./renderer.js?v=46";
+import { Input } from "./input.js?v=46";
+import { AudioEngine } from "./audio.js?v=46";
+import { HUD } from "./hud.js?v=46";
+import { Game } from "./game.js?v=46";
+import { Debugger } from "./debug.js?v=46";
+import { Haptics } from "./haptics.js?v=46";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=46";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -263,6 +263,8 @@ refreshOverlayClass();
 
 // --- main loop -------------------------------------------------------------
 
+const bombBtn = document.getElementById("bomb-btn");
+
 function loop(now) {
   game.update(now);
   dbg.update();
@@ -271,10 +273,13 @@ function loop(now) {
     const mode = fire ? "fire" : "mark";
     if (markFireBtn.dataset.mode !== mode) {
       markFireBtn.dataset.mode = mode;
-      markFireBtn.textContent = fire ? "FIRE" : "MARK";
       markFireBtn.setAttribute("aria-label", mode);
       markFireBtn.classList.toggle("is-fire", fire);
     }
+  }
+  if (bombBtn) {
+    const has = game.grid.bombs.length > 0;
+    if (bombBtn.hidden !== !has) bombBtn.hidden = !has;
   }
   requestAnimationFrame(loop);
 }

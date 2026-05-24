@@ -11,7 +11,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <link rel="stylesheet" href="css/style.css?v=45" />
+  <link rel="stylesheet" href="css/style.css?v=46" />
   <script type="importmap">
     {
       "imports": {
@@ -24,7 +24,7 @@
 <body>
   <canvas id="stage"></canvas>
 
-  <div id="version-stamp">v45 · 2026-05-24 02:12 UTC</div>
+  <div id="version-stamp">v46 · 2026-05-24 02:17 UTC</div>
 
   <button id="fast-btn" aria-label="hold to speed cubes up 2x">2× FAST</button>
 
@@ -52,8 +52,17 @@
       </div>
     </div>
     <div class="actions">
-      <button class="tbtn act-mark-fire" id="mark-fire-btn" aria-label="mark">MARK</button>
-      <button class="tbtn act-bomb"    data-action="detonate" aria-label="detonate">BOMB</button>
+      <button class="tbtn act-mark-fire" id="mark-fire-btn" aria-label="mark">
+        <svg class="mf-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+          <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+        </svg>
+      </button>
+      <button class="tbtn act-bomb" id="bomb-btn" data-action="detonate" aria-label="detonate" hidden>
+        <svg class="bomb-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="12,5 21,20 3,20" fill="currentColor" />
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -93,6 +102,6 @@
     <p class="prompt touch-only">tap to restart</p>
   </div>
 
-  <script type="module" src="js/main.js?v=45"></script>
+  <script type="module" src="js/main.js?v=46"></script>
 </body>
 </html>
