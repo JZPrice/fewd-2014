@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=95";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=96";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -757,7 +757,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=95", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=96", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -825,64 +825,55 @@ export class Renderer {
     mesh.rotation.y = t * Math.PI * 0.8;
   }
 
-  // Bomb-placement hint: pulse a transparent red aura around the cubes
-  // sitting inside the new bomb's 3x3 zone so the player sees what's
-  // queued for the blast. Each aura is parented to the target cube's
-  // pivot so it tracks the cube's roll. Auto-removed when the pulse
-  // ends. Pass an array of cube IDs that were inside the zone at the
-  // moment of placement.
+  // Bomb-placement hint: directly tint the cubes inside the new bomb's
+  // 3x3 zone red for ~800ms so the player can see who's caught in the
+  // blast. We clone each cube's shared material, swap in the clone, lerp
+  // its color toward red, then restore the original. No overlay meshes,
+  // no overlap artifacts.
   spawnBombAuraOnCubes(cubeIds) {
     if (!cubeIds || cubeIds.length === 0) return;
-    if (!this._bombAuraGeom) {
-      // Slightly larger box per cube; we render only its back-faces so
-      // the cube body occludes everything except the thin rim that pokes
-      // past the cube's silhouette - reads as a halo, not a flat overlay.
-      this._bombAuraGeom = new THREE.BoxGeometry(TILE * 1.22, TILE * 1.22, TILE * 1.22);
-    }
     this._bombAuras ??= [];
     for (const id of cubeIds) {
       const entry = this.cubeMeshes.get(id);
       if (!entry) continue;
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xff3030,
-        transparent: true,
-        opacity: 0,
-        side: THREE.BackSide,
-        depthWrite: false,
-      });
-      const aura = new THREE.Mesh(this._bombAuraGeom, mat);
-      // Match the cube mesh's offset within the pivot so the halo wraps
-      // the cube body, not the pivot edge.
-      aura.position.set(0, 0.5, -0.5);
-      entry.pivot.add(aura);
+      // Don't double-clone if this cube is already being flashed; reset
+      // the timer instead.
+      const existing = this._bombAuras.find(a => a.mesh === entry.mesh);
+      if (existing) { existing.t0 = performance.now(); continue; }
+      const originalMat = entry.mesh.material;
+      const clonedMat = originalMat.clone();
+      entry.mesh.material = clonedMat;
       this._bombAuras.push({
-        aura, pivot: entry.pivot,
-        t0: performance.now(), duration: 800,
+        mesh: entry.mesh,
+        originalMat,
+        clonedMat,
+        originalColor: clonedMat.color.clone(),
+        t0: performance.now(),
+        duration: 800,
       });
     }
   }
 
   _animateBombAuras() {
     if (!this._bombAuras || this._bombAuras.length === 0) return;
+    const RED = new THREE.Color(0xff2818);
     const now = performance.now();
     for (let i = this._bombAuras.length - 1; i >= 0; i--) {
       const a = this._bombAuras[i];
       const t = (now - a.t0) / a.duration;
       if (t >= 1) {
-        a.pivot.remove(a.aura);
-        a.aura.material.dispose();
+        a.mesh.material = a.originalMat;
+        a.clonedMat.dispose();
         this._bombAuras.splice(i, 1);
         continue;
       }
-      // Quick rise, hold at peak, fade out. Higher peak than the mark
-      // ghost because we're only seeing the silhouette rim, not the
-      // whole object.
-      const PEAK = 0.85;
-      let alpha;
-      if (t < 0.15)      alpha = (t / 0.15) * PEAK;
-      else if (t < 0.50) alpha = PEAK;
-      else               alpha = PEAK * (1 - (t - 0.50) / 0.50);
-      a.aura.material.opacity = alpha;
+      // Quick rise to full red, hold, fade back to original.
+      const PEAK = 1.0;
+      let mix;
+      if (t < 0.15)      mix = (t / 0.15) * PEAK;
+      else if (t < 0.55) mix = PEAK;
+      else               mix = PEAK * (1 - (t - 0.55) / 0.45);
+      a.clonedMat.color.copy(a.originalColor).lerp(RED, mix);
     }
   }
 
@@ -972,6 +963,16 @@ export class Renderer {
   removeCubeMesh(cubeId) {
     const entry = this.cubeMeshes.get(cubeId);
     if (!entry) return;
+    // Cancel any in-flight bomb aura tied to this cube so it doesn't
+    // try to restore a now-detached material later.
+    if (this._bombAuras && this._bombAuras.length > 0) {
+      for (let i = this._bombAuras.length - 1; i >= 0; i--) {
+        if (this._bombAuras[i].mesh === entry.mesh) {
+          this._bombAuras[i].clonedMat.dispose();
+          this._bombAuras.splice(i, 1);
+        }
+      }
+    }
     this.scene.remove(entry.pivot);
     this.cubeMeshes.delete(cubeId);
   }
