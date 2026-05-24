@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=43";
-import { Player } from "./player.js?v=43";
-import { Stage } from "./stage.js?v=43";
-import { STAGES } from "./stages.js?v=43";
-import { GRID_W, GRID_D } from "./config.js?v=43";
+import { Grid } from "./grid.js?v=44";
+import { Player } from "./player.js?v=44";
+import { Stage } from "./stage.js?v=44";
+import { STAGES } from "./stages.js?v=44";
+import { GRID_W, GRID_D } from "./config.js?v=44";
 
 const STATE = {
   TITLE: "title",
@@ -164,6 +164,7 @@ export class Game {
     if (this.state !== STATE.PLAYING) return;
     const m = this.grid.mark;
     if (!m) return;
+    this.renderer.fireBlast?.(m.x, m.z);
     const hit = this.stage.cubes.find(c => !c.dead && c.gx === m.x && c.gz === m.z);
     if (!hit) {
       this.grid.clearMark();
