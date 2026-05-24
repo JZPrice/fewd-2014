@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=99";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=100";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -78,15 +78,15 @@ function patchLambertNoise(mat, { scale = 1.4, strength = 0.22, space = "world" 
   mat.needsUpdate = true;
 }
 
-// Engraved-rune patch for the forbidden/advantage cubes. Layers three
-// thresholded sine stripes into a sharp, irregular groove pattern.
-// `darken` pulls the groove regions toward black (good for colored
-// surfaces); `lift` adds light to the grooves so they read on a dark
-// base. Pattern is locked to local position so it stays put as the
-// cube rolls.
-function patchRuneGrooves(mat, opts = {}) {
-  const scale = (opts.scale ?? 5.5).toFixed(3);
-  const threshold = (opts.threshold ?? 0.93).toFixed(3);
+// Scratch/scuff patch for forbidden/advantage cubes. High-frequency
+// stripe set with per-region noise-driven phase offsets gives thin
+// hand-scratched lines instead of regular grooves; a noise gate then
+// turns them off across large regions so the marks are sparse and
+// random, not gridded. Lambert lighting + the gradient-based edge
+// term fake a bump-map feel without an actual normal map.
+function patchScratches(mat, opts = {}) {
+  const scale = (opts.scale ?? 18.0).toFixed(3);
+  const threshold = (opts.threshold ?? 0.965).toFixed(3);
   const darken = (opts.darken ?? 0.5).toFixed(3);
   const lift = opts.lift ?? [0, 0, 0];
   const lr = lift[0].toFixed(3);
@@ -94,27 +94,39 @@ function patchRuneGrooves(mat, opts = {}) {
   const lb = lift[2].toFixed(3);
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n  varying vec3 vRunePos;`)
-      .replace("#include <begin_vertex>", `#include <begin_vertex>\n  vRunePos = position;`);
+      .replace("#include <common>", `#include <common>\n  varying vec3 vScratchPos;`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n  vScratchPos = position;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\n  varying vec3 vRunePos;`)
+      .replace(
+        "#include <common>",
+        `#include <common>\n  varying vec3 vScratchPos;\n${NOISE_GLSL}`,
+      )
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>
           {
-            vec3 p = vRunePos * ${scale};
-            float a = abs(sin(p.x + p.z * 0.42 + 1.3));
-            float b = abs(sin(p.y * 1.27 + p.x * 0.31 + 2.7));
-            float c = abs(sin((p.x + p.y + p.z) * 0.71 + 4.1));
-            float groove = step(${threshold}, max(a, max(b, c)));
-            float warm = 0.86 + 0.14 * abs(sin(p.x * 2.1 + p.y * 1.7));
-            diffuseColor.rgb *= warm;
-            diffuseColor.rgb *= 1.0 - ${darken} * groove;
-            diffuseColor.rgb += vec3(${lr}, ${lg}, ${lb}) * groove;
-          }`
+            vec3 p = vScratchPos * ${scale};
+            // Per-region phase shifts (driven by low-freq noise) make the
+            // stripes wobble + read as hand-cut, not perfectly periodic.
+            float seed = fbm3(p * 0.16);
+            float a = abs(sin(p.x + p.y * 0.4 + seed * 7.3));
+            float b = abs(sin(p.y - p.z * 0.6 + seed * 11.1));
+            float c = abs(sin(p.z + p.x * 0.3 + seed * 5.7));
+            float d = abs(sin((p.x - p.y * 0.7) + p.z * 0.5 + seed * 9.4));
+            float lines = max(max(a, b), max(c, d));
+            // Narrow threshold = pixel-thin scratches.
+            float scratch = step(${threshold}, lines);
+            // Sparsity gate so the surface isn't uniformly scratched.
+            float gate = step(0.42, fbm3(p * 0.55 + vec3(13.0, 7.0, 3.0)));
+            scratch *= gate;
+            // Subtle diffuse jitter so the base isn't a flat plate.
+            diffuseColor.rgb *= 0.92 + 0.08 * fbm3(p * 0.35);
+            diffuseColor.rgb *= 1.0 - ${darken} * scratch;
+            diffuseColor.rgb += vec3(${lr}, ${lg}, ${lb}) * scratch;
+          }`,
       );
   };
-  mat.customProgramCacheKey = () => `runegrooves|${scale}|${threshold}|${darken}|${lr}|${lg}|${lb}`;
+  mat.customProgramCacheKey = () => `scratches|${scale}|${threshold}|${darken}|${lr}|${lg}|${lb}`;
   mat.needsUpdate = true;
 }
 
@@ -165,7 +177,7 @@ export class Renderer {
       emissive: COLORS.advantageAccent,
       emissiveIntensity: 0.5,
     });
-    patchRuneGrooves(this._advantageMat, { darken: 0.45 });
+    patchScratches(this._advantageMat, { darken: 0.5 });
 
     // Forbidden = polished onyx. PBR clearcoat gives the wet shine, and
     // the rune pattern lifts (rather than darkens) so engraved grooves
@@ -177,7 +189,7 @@ export class Renderer {
       clearcoat: 1.0,
       clearcoatRoughness: 0.05,
     });
-    patchRuneGrooves(this._forbiddenMat, { darken: 0.0, lift: [0.06, 0.07, 0.10] });
+    patchScratches(this._forbiddenMat, { darken: 0.0, lift: [0.10, 0.11, 0.14] });
     this._installEnvironment();
     this._buildAbyssBackground();
 
@@ -799,7 +811,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=99", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=100", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
