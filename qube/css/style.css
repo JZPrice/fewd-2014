@@ -388,33 +388,35 @@ body.overlay-shown #touch-controls { opacity: 0.25; pointer-events: none; }
 
 #fast-btn {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
+  left: max(36px, calc(env(safe-area-inset-left) + 20px));
+  bottom: max(196px, calc(env(safe-area-inset-bottom) + 188px));
   z-index: 25;
-  height: 38px;
-  padding: 0 16px;
-  background: rgba(20, 30, 50, 0.55);
-  border: 1px solid rgba(180, 200, 255, 0.32);
-  color: #c8e0ff;
-  font: 700 12px/1 inherit;
-  letter-spacing: 0.16em;
-  border-radius: 19px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #0a0a12;
+  color: #ffd24c;
+  border: 4px solid #5e530d;
+  box-shadow:
+    0 5px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -3px 0 rgba(255, 210, 76, 0.22);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: background 0.08s ease, border-color 0.08s ease, transform 0.06s ease;
+  transition: transform 90ms ease, box-shadow 90ms ease, border-color 180ms ease;
 }
 #fast-btn.pressed {
-  background: rgba(120, 200, 255, 0.55);
-  border-color: rgba(200, 230, 255, 0.85);
-  color: #ffffff;
-  transform: translateX(-50%) scale(0.96);
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -2px 0 rgba(255, 210, 76, 0.22);
+  border-color: #ffd24c;
 }
+#fast-btn .ff-icon { width: 56%; height: 56%; }
 body.overlay-shown #fast-btn { opacity: 0.35; pointer-events: none; }
 
 #version-stamp {
