@@ -4,7 +4,7 @@ export const GRID_D = 16;
 // instances for MAX_GRID_W * MAX_GRID_D and hides tiles outside the
 // current stage's actual gridW / gridD.
 export const MAX_GRID_W = 6;
-export const MAX_GRID_D = 24;
+export const MAX_GRID_D = 64;
 export const TILE = 1;
 
 // Slide and cooldown match so each step blends into the next - no pause

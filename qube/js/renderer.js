@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=69";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=70";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -247,6 +247,39 @@ export class Renderer {
         } else {
           this._hideUnderbodyColumn(x, z);
           col.hidden = true;
+        }
+      }
+    }
+    for (let layer = 0; layer < this._underbodyLayers; layer++) {
+      this._underbodyMeshes[layer].instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  // Reveal additional rows at the back of an in-flight stage. Used for the
+  // post-wave runway bonus: existing tiles (which may be mid-crumble) are
+  // left alone; only rows in [oldD, newD) get positioned, shown, and snapped
+  // to rest. Camera state is untouched - the follow spring already owns it.
+  extendStageDepth(newD) {
+    const oldD = this._stageD;
+    if (newD <= oldD) return;
+    this._stageD = newD;
+    for (let x = 0; x < this._stageW; x++) {
+      for (let z = oldD; z < newD; z++) {
+        const m = this.floorMeshes[x][z];
+        const p = this._toWorld(x, z);
+        m.position.set(p.x, m.userData.restY, p.z);
+        m.rotation.set(0, 0, 0);
+        m.userData.targetY = m.userData.restY;
+        m.userData.vy = 0;
+        m.userData.dropping = false;
+        m.userData.dropDelay = 0;
+        m.userData.fallNotified = false;
+        m.visible = true;
+
+        const col = this._underbodyDrop[x][z];
+        col.y = 0; col.vy = 0; col.dropping = false; col.dropDelay = 0; col.hidden = false;
+        for (let layer = 0; layer < this._underbodyLayers; layer++) {
+          this._setUnderbodyInstance(x, z, layer, 0);
         }
       }
     }

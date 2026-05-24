@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=69";
-import { Player } from "./player.js?v=69";
-import { Stage } from "./stage.js?v=69";
-import { STAGES } from "./stages.js?v=69";
-import { GRID_W, GRID_D } from "./config.js?v=69";
+import { Grid } from "./grid.js?v=70";
+import { Player } from "./player.js?v=70";
+import { Stage } from "./stage.js?v=70";
+import { STAGES } from "./stages.js?v=70";
+import { GRID_W, GRID_D } from "./config.js?v=70";
 
 const STATE = {
   TITLE: "title",
@@ -169,6 +169,19 @@ export class Game {
     } else if (restoredFromForbidden === 0) {
       this.hud.flash("CLEAR", 900);
     }
+
+    // Runway bonus: the area the just-cleared wave's cubes occupied at
+    // spawn becomes permanent platform. waveDepth = layout.length rows
+    // tacked onto the back, preserving any holes in the existing tiles.
+    const justCleared = this.stage.def.waves[this.stage.waveIndex];
+    const grow = justCleared?.layout?.length ?? 0;
+    if (grow > 0) {
+      this.grid.extendDepth(grow);
+      this.stage.gridD = this.grid.d;
+      this.renderer.extendStageDepth?.(this.grid.d);
+      this.hud.flash(`+${grow} RUNWAY`, 1100);
+    }
+
     if (this.stage.hasMoreWaves()) {
       this.state = STATE.WAVE_INTERMISSION;
       this._intermissionUntil = now + 1300;
