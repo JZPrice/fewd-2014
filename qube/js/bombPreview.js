@@ -15,8 +15,8 @@ export class BombPreview {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
-    this.camera.position.set(0, 0.15, 2.4);
+    this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 20);
+    this.camera.position.set(0, 0.15, 3.6);
     this.camera.lookAt(0, 0, 0);
 
     const hemi = new THREE.HemisphereLight(0xbac0d8, 0x303040, 0.95);
@@ -32,11 +32,12 @@ export class BombPreview {
     this.scene.add(this.pivot);
 
     this._clock = new THREE.Clock();
+    this._elapsed = 0;
     this._raf = null;
     this._running = false;
     this._loop = this._loop.bind(this);
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=114", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=115", (gltf) => {
       const model = gltf.scene;
       model.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       // The loaded scene already bakes the model's 100x armature scale,
@@ -72,7 +73,11 @@ export class BombPreview {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     if (w === 0 || h === 0) return;
-    this.pivot.rotation.y += dt * 1.4;
+    this._elapsed += dt;
+    // Gentle sway: ±22.5 (45 deg total) about Y, plus a small vertical
+    // bob. Keeps the icon alive without being dizzy.
+    this.pivot.rotation.y = Math.sin(this._elapsed * 1.4) * (Math.PI / 8);
+    this.pivot.position.y = Math.sin(this._elapsed * 2.1) * 0.06;
     this._resize();
     this.renderer.render(this.scene, this.camera);
   }

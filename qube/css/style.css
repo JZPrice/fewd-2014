@@ -359,6 +359,7 @@ body.touch #touch-controls {
     inset 0 -4px 0 rgba(0, 0, 0, 0.10);
   display: flex; align-items: center; justify-content: center;
   padding: 0;
+  overflow: hidden;
   transition: transform 90ms ease, box-shadow 90ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
 }
 .act-mark-fire.is-fire {
@@ -376,7 +377,7 @@ body.touch #touch-controls {
     inset 0 -2px 0 rgba(0, 0, 0, 0.10);
 }
 .act-mark-fire .mf-bomb {
-  width: 80%; height: 80%;
+  width: 100%; height: 100%;
   display: block;
   background: transparent;
   pointer-events: none;
