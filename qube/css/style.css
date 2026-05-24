@@ -278,10 +278,10 @@ body.touch #touch-controls {
    never shifts the main button. */
 .actions {
   position: absolute;
-  right: max(16px, env(safe-area-inset-right));
+  right: max(40px, calc(env(safe-area-inset-right) + 24px));
   bottom: max(16px, env(safe-area-inset-bottom));
-  width: 84px;
-  height: 84px;
+  width: 96px;
+  height: 96px;
 }
 
 .actions .tbtn {
@@ -292,8 +292,8 @@ body.touch #touch-controls {
 .actions .tbtn[hidden] { display: none; }
 
 .actions .act-mark-fire {
-  width: 84px;
-  height: 84px;
+  width: 96px;
+  height: 96px;
 }
 
 .actions .act-bomb {
@@ -345,9 +345,9 @@ body.touch .touch-only { display: block; }
   #hud { font-size: 12px; padding: 8px 12px; }
   .joystick { width: 140px; height: 140px; }
   .joy-stick { width: 54px; height: 54px; }
-  .actions { width: 76px; height: 76px; }
-  .actions .act-mark-fire { width: 76px; height: 76px; }
-  .actions .act-bomb { width: 58px; height: 58px; margin-right: 12px; bottom: 8px; }
+  .actions { width: 88px; height: 88px; right: max(32px, calc(env(safe-area-inset-right) + 18px)); }
+  .actions .act-mark-fire { width: 88px; height: 88px; }
+  .actions .act-bomb { width: 64px; height: 64px; margin-right: 12px; bottom: 10px; }
 }
 
 /* hide controls during title/gameover overlays */
