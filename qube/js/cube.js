@@ -1,4 +1,4 @@
-import { CUBE_TYPE } from "./config.js?v=72";
+import { CUBE_TYPE } from "./config.js?v=73";
 
 let nextId = 1;
 
@@ -10,6 +10,11 @@ export class Cube {
     this.gz = gz;
     this.roll = null;
     this.dead = false;
+    // Index of the wave this cube belongs to. All waves are spawned up front
+    // at stage start; only cubes whose waveIndex matches stage.waveIndex
+    // tick / can be captured. Later waves stand still as a wall preview
+    // until their turn.
+    this.waveIndex = 0;
     // When a cube rolls past the front edge it enters a "falling off"
     // animation state instead of vanishing instantly: it tumbles forward
     // and drops out of view, then is reaped.
