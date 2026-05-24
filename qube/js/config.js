@@ -26,7 +26,7 @@ export const COLORS = {
   forbiddenAccent: 0xff3030,
   advantage:  0x4cd97a,
   advantageAccent: 0xa9ffc5,
-  mark:       0x6bd0ff,
+  mark:       0xc8e83a,
   advMark:    0x8effc0,
   player:     0xffd24c,
   sky:        0x2a3454,
