@@ -388,18 +388,15 @@ body.overlay-shown #touch-controls { opacity: 0.25; pointer-events: none; }
 
 #fast-btn {
   position: fixed;
-  left: max(36px, calc(env(safe-area-inset-left) + 20px));
+  left: max(48px, calc(env(safe-area-inset-left) + 32px));
   bottom: max(196px, calc(env(safe-area-inset-bottom) + 188px));
   z-index: 25;
-  width: 64px;
-  height: 64px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: #0a0a12;
-  color: #ffd24c;
-  border: 4px solid #5e530d;
-  box-shadow:
-    0 5px 0 rgba(0, 0, 0, 0.55),
-    inset 0 -3px 0 rgba(255, 210, 76, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   display: flex; align-items: center; justify-content: center;
   padding: 0;
   cursor: pointer;
@@ -407,16 +404,16 @@ body.overlay-shown #touch-controls { opacity: 0.25; pointer-events: none; }
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
-  transition: transform 90ms ease, box-shadow 90ms ease, border-color 180ms ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 #fast-btn.pressed {
-  transform: translateY(3px);
-  box-shadow:
-    0 2px 0 rgba(0, 0, 0, 0.55),
-    inset 0 -2px 0 rgba(255, 210, 76, 0.22);
-  border-color: #ffd24c;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.55);
 }
-#fast-btn .ff-icon { width: 56%; height: 56%; }
+#fast-btn .ff-icon { width: 52%; height: 52%; }
 body.overlay-shown #fast-btn { opacity: 0.35; pointer-events: none; }
 
 #version-stamp {
