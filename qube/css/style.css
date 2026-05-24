@@ -103,11 +103,14 @@ html, body {
 }
 
 .tagline {
-  color: #7a87b5;
-  letter-spacing: 0.3em;
-  font-size: 12px;
-  text-transform: uppercase;
+  font-family: "Grenze Gotisch", "Times New Roman", serif;
+  color: #b8c4e0;
+  font-size: clamp(16px, 2.4vw, 22px);
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: normal;
   margin-bottom: 24px;
+  opacity: 0.85;
 }
 
 .controls {
@@ -137,10 +140,13 @@ html, body {
   );
 }
 .char-label {
-  font-size: 10px;
-  letter-spacing: 0.32em;
-  color: #7a87b5;
-  font-weight: 700;
+  font-family: "Grenze Gotisch", "Times New Roman", serif;
+  font-size: 16px;
+  letter-spacing: normal;
+  color: #9aa8c8;
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.85;
 }
 .char-row {
   display: flex;
@@ -150,10 +156,11 @@ html, body {
   justify-content: center;
 }
 #char-name {
-  font-size: 22px;
-  font-weight: 200;
-  letter-spacing: 0.22em;
-  color: #e8eef8;
+  font-family: "Grenze Gotisch", "Times New Roman", serif;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: normal;
+  color: #f4e8c8;
   min-width: 120px;
   text-align: center;
 }
