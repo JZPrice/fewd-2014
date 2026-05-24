@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=43";
+import { GRID_W, GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=44";
 
 export function gridToWorld(gx, gz) {
   return {
@@ -109,6 +109,7 @@ export class Renderer {
     this._buildFloor();
     this._buildPlayer();
     this._buildMark();
+    this._buildFireBlast();
     this._buildBombs();
 
     this.cubeMeshes = new Map();
@@ -587,6 +588,69 @@ export class Renderer {
     this._markLastTime = performance.now();
   }
 
+  // Visual punch when the player fires on a mark: a brief red column at the
+  // mark's position plus an expanding bright sphere. Both additive, so the
+  // tile "lights up" in red as the mark detonates. Triggered by fireBlast().
+  _buildFireBlast() {
+    const w = TILE * 0.98;
+    const h = 4;
+    const shaftMat = new THREE.MeshBasicMaterial({
+      color: 0xff2818,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+    });
+    this._blastShaft = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), shaftMat);
+    this._blastShaft.visible = false;
+    this.scene.add(this._blastShaft);
+
+    const sphereMat = new THREE.MeshBasicMaterial({
+      color: 0xff3a20,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+    });
+    this._blastSphere = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), sphereMat);
+    this._blastSphere.visible = false;
+    this.scene.add(this._blastSphere);
+
+    this._blast = { active: false, t0: 0, dur: 360, h };
+  }
+
+  fireBlast(x, z) {
+    const p = gridToWorld(x, z);
+    const h = this._blast.h;
+    this._blastShaft.position.set(p.x, h / 2, p.z);
+    this._blastShaft.material.opacity = 0.95;
+    this._blastShaft.visible = true;
+    this._blastSphere.position.set(p.x, 0.5, p.z);
+    this._blastSphere.scale.setScalar(0.4);
+    this._blastSphere.material.opacity = 1.0;
+    this._blastSphere.visible = true;
+    this._blast.active = true;
+    this._blast.t0 = performance.now();
+  }
+
+  _animateFireBlast() {
+    if (!this._blast.active) return;
+    const u = Math.min(1, (performance.now() - this._blast.t0) / this._blast.dur);
+    // Sphere: ease-out cubic expansion, linear opacity fade.
+    const s = 0.4 + (1 - Math.pow(1 - u, 3)) * 2.2;
+    this._blastSphere.scale.setScalar(s);
+    this._blastSphere.material.opacity = 1.0 - u;
+    // Shaft: gone by mid-blast - it's the brief red "where the mark was" flash.
+    this._blastShaft.material.opacity = Math.max(0, 0.95 * (1 - u * 2));
+    if (u >= 1) {
+      this._blast.active = false;
+      this._blastSphere.visible = false;
+      this._blastShaft.visible = false;
+    }
+  }
+
   _buildBombs() {
     // Pool of up to N bomb visuals — each is a floating tetrahedron above its
     // tile plus a 3x3 ring of subtle red tile overlays showing the blast area.
@@ -948,6 +1012,7 @@ export class Renderer {
 
   step(dt) {
     this._animateFloorDrops(dt);
+    this._animateFireBlast();
     if (this._mixer) this._mixer.update(dt);
     if (this._lavaUniforms) this._lavaUniforms.uTime.value += dt;
   }
