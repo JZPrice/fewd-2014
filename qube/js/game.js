@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=103";
-import { Player } from "./player.js?v=103";
-import { Stage } from "./stage.js?v=103";
-import { STAGES } from "./stages.js?v=103";
-import { GRID_W, GRID_D } from "./config.js?v=103";
+import { Grid } from "./grid.js?v=104";
+import { Player } from "./player.js?v=104";
+import { Stage } from "./stage.js?v=104";
+import { STAGES } from "./stages.js?v=104";
+import { GRID_W, GRID_D } from "./config.js?v=104";
 
 const STATE = {
   TITLE: "title",
@@ -244,6 +244,7 @@ export class Game {
     }
 
     hit.dead = true;
+    hit.startDissolving(performance.now());
     if (hit.isAdvantage()) {
       this.grid.addBomb(m.x, m.z);
       this.audio.advCharge();
@@ -298,6 +299,7 @@ export class Game {
         if (Math.abs(cube.gx - bomb.cx) <= 1 && Math.abs(cube.gz - bomb.cz) <= 1) {
           killedSet.add(cube.id);
           cube.dead = true;
+          cube.startDissolving(now);
           if (cube.isForbidden()) {
             this.stage.forbiddenDestroyed = true;
             this._requestFrontRowDrop(now);
@@ -411,7 +413,12 @@ export class Game {
     }
 
     this.renderer.syncFloor(this.grid);
-    this.renderer.syncCubes(this.stage ? this.stage.cubes.filter(c => !c.dead) : [], now);
+    // Dissolving cubes are gameplay-dead but still need to render until
+    // their sink-into-the-floor animation completes.
+    this.renderer.syncCubes(
+      this.stage ? this.stage.cubes.filter(c => !c.dead || c.dissolving) : [],
+      now,
+    );
     this.renderer.syncPlayer(this.player, now);
     this.renderer.syncMarks(this.grid);
     this.renderer.syncBombs(this.grid.bombs, now);
@@ -502,11 +509,14 @@ export class Game {
       }
     }
 
-    // Reap cubes whose fall-off animation has finished.
+    // Reap cubes whose fall-off / dissolve animation has finished.
     for (const cube of this.stage.cubes) {
       if (cube.fallingOff && (now - cube.fallOffT0) >= cube.fallOffDuration) {
         cube.dead = true;
         cube.fallingOff = false;
+      }
+      if (cube.dissolving && (now - cube.dissolveT0) >= cube.dissolveDuration) {
+        cube.dissolving = false;
       }
     }
     // Wave can clear once the last falling cube has finished its animation

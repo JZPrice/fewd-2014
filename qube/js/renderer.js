@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=103";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=104";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -850,7 +850,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=103", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=104", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1069,6 +1069,11 @@ export class Renderer {
         }
       }
     }
+    // Dispose the per-cube material clone we minted for the dissolve
+    // animation, if any.
+    if (entry.mesh.userData.dissolving) {
+      entry.mesh.material.dispose();
+    }
     this.scene.remove(entry.pivot);
     this.cubeMeshes.delete(cubeId);
   }
@@ -1206,7 +1211,39 @@ export class Renderer {
     for (const cube of cubes) {
       seen.add(cube.id);
       const { pivot, mesh } = this._ensureCubeMesh(cube);
-      if (cube.fallingOff) {
+      if (cube.dissolving) {
+        // Captured: sinks into the floor, scales down, tints red, fades.
+        // First frame: clone the material so color/opacity changes don't
+        // bleed onto live siblings. Also cancel any in-flight bomb aura
+        // on this cube so it doesn't try to restore a stale ref.
+        if (!mesh.userData.dissolving) {
+          mesh.userData.dissolving = true;
+          if (this._bombAuras && this._bombAuras.length > 0) {
+            for (let i = this._bombAuras.length - 1; i >= 0; i--) {
+              if (this._bombAuras[i].mesh === mesh) {
+                mesh.material = this._bombAuras[i].originalMat;
+                this._bombAuras[i].clonedMat.dispose();
+                this._bombAuras.splice(i, 1);
+              }
+            }
+          }
+          mesh.userData.dissolveOrigMat = mesh.material;
+          mesh.material = mesh.material.clone();
+          mesh.material.transparent = true;
+          mesh.userData.dissolveOrigColor = mesh.material.color.clone();
+        }
+        const u = cube.dissolveProgress(now);
+        const p = this._toWorld(cube.gx, cube.gz);
+        // Sink into the floor + shrink + tilt slightly for "absorption" feel.
+        pivot.position.set(p.x, -u * 1.2, p.z + TILE / 2);
+        pivot.rotation.x = u * 0.35;
+        pivot.scale.setScalar(1.0 - u * 0.35);
+        mesh.position.set(0, 0.5, -0.5);
+        // Tint to red and fade.
+        if (!Renderer._DISSOLVE_RED) Renderer._DISSOLVE_RED = new THREE.Color(0xff2818);
+        mesh.material.color.copy(mesh.userData.dissolveOrigColor).lerp(Renderer._DISSOLVE_RED, u);
+        mesh.material.opacity = 1.0 - u * 0.85;
+      } else if (cube.fallingOff) {
         // Tumbling off the edge: continues forward in +Z while accelerating
         // downward in Y, rolling well past the 90 degree tip so it looks
         // like it's plummeting.
@@ -1218,6 +1255,7 @@ export class Renderer {
           fromP.z + TILE / 2 + u * 2,  // continue rolling forward ~2 tiles
         );
         pivot.rotation.x = u * Math.PI * 1.4; // tumble past vertical
+        pivot.scale.setScalar(1);
         mesh.position.set(0, 0.5, -0.5);
       } else if (cube.roll) {
         const u = cube.rollProgress(now);
@@ -1230,6 +1268,7 @@ export class Renderer {
         const p = this._toWorld(cube.gx, cube.gz);
         pivot.position.set(p.x, 0, p.z + TILE / 2);
         pivot.rotation.x = 0;
+        pivot.scale.setScalar(1);
         mesh.position.set(0, 0.5, -0.5);
       }
     }
