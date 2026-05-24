@@ -3,7 +3,7 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
-import { STAGES } from "./stages.js?v=102";
+import { STAGES } from "./stages.js?v=103";
 
 export class Debugger {
   constructor(game) {
@@ -102,20 +102,6 @@ export class Debugger {
             <div class="dbg-stat"><span>last shake</span><b id="dbg-shake">—</b></div>
             <div class="dbg-row">
               <button data-act="shaketest">shake test</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="dbg-section" data-sec="grout">
-          <button class="dbg-section-head">Grout</button>
-          <div class="dbg-section-body">
-            <div class="dbg-stat">
-              <span>inset</span>
-              <span class="dbg-tune">
-                <button data-act="grout--">−0.005</button>
-                <b id="dbg-grout">—</b>
-                <button data-act="grout++">+0.005</button>
-              </span>
             </div>
           </div>
         </div>
@@ -227,8 +213,6 @@ export class Debugger {
       case "spd++": g.player.speed = Math.min(20,  g.player.speed + 0.5); break;
       case "cam--": g.renderer.followHalflife = Math.max(50,   (g.renderer.followHalflife ?? 300) - 50); break;
       case "cam++": g.renderer.followHalflife = Math.min(1500, (g.renderer.followHalflife ?? 300) + 50); break;
-      case "grout--": g.renderer.setGroutInset?.((g.renderer.groutInset ?? 0.99) - 0.005); break;
-      case "grout++": g.renderer.setGroutInset?.((g.renderer.groutInset ?? 0.99) + 0.005); break;
       case "shaketest": g.renderer.shake?.(0.20, 280); break;
       case "copy":  this._copyState(); break;
       case "hap":
@@ -313,7 +297,6 @@ export class Debugger {
       $("dbg-epms").textContent = `${ep}ms`;
       $("dbg-spd").textContent = `${(1000 / g.player.speed).toFixed(0)}ms/tile`;
       $("dbg-cam").textContent = `${g.renderer.followHalflife ?? 300}ms`;
-      $("dbg-grout").textContent = (g.renderer.groutInset ?? 0.99).toFixed(3);
       const ls = g.renderer._lastShake;
       $("dbg-shake").textContent = ls
         ? `amp ${ls.amp.toFixed(2)} / ${ls.durMs}ms (${((Date.now() - ls.at) / 1000).toFixed(1)}s ago)`
