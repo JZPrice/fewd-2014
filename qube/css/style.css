@@ -278,12 +278,12 @@ body.touch #touch-controls {
    never shifts the main button. */
 .actions {
   position: absolute;
-  /* Anchored well inside the right edge so the satellite has room to live
-     on the main button's upper-right corner without leaving the screen. */
-  right: max(100px, calc(env(safe-area-inset-right) + 84px));
-  bottom: max(16px, env(safe-area-inset-bottom));
-  width: 96px;
-  height: 96px;
+  /* Right inset leaves just enough room for the satellite to sit on the
+     main button's upper-right without leaving the screen. */
+  right: max(78px, calc(env(safe-area-inset-right) + 62px));
+  bottom: max(44px, calc(env(safe-area-inset-bottom) + 28px));
+  width: 108px;
+  height: 108px;
 }
 
 .actions .tbtn {
@@ -294,8 +294,8 @@ body.touch #touch-controls {
 .actions .tbtn[hidden] { display: none; }
 
 .actions .act-mark-fire {
-  width: 96px;
-  height: 96px;
+  width: 108px;
+  height: 108px;
 }
 
 /* Satellite sits diagonally above-and-right of the main button. Main is
@@ -304,10 +304,10 @@ body.touch #touch-controls {
   position: absolute;
   left: 100%;
   bottom: 100%;
-  margin-left: 10px;
-  margin-bottom: 10px;
-  width: 72px;
-  height: 72px;
+  margin-left: 8px;
+  margin-bottom: 8px;
+  width: 64px;
+  height: 64px;
 }
 /* NES-style chunky pressable buttons: thick colored ring, hard drop shadow
    for a 3D rest, on press the button drops into the shadow. */
@@ -372,9 +372,13 @@ body.touch .touch-only { display: block; }
   #hud { font-size: 12px; padding: 8px 12px; }
   .joystick { width: 140px; height: 140px; }
   .joy-stick { width: 54px; height: 54px; }
-  .actions { width: 88px; height: 88px; right: max(86px, calc(env(safe-area-inset-right) + 70px)); }
-  .actions .act-mark-fire { width: 88px; height: 88px; }
-  .actions .act-bomb { width: 64px; height: 64px; margin-left: 10px; margin-bottom: 10px; bottom: 100%; }
+  .actions {
+    width: 96px; height: 96px;
+    right: max(66px, calc(env(safe-area-inset-right) + 54px));
+    bottom: max(36px, calc(env(safe-area-inset-bottom) + 22px));
+  }
+  .actions .act-mark-fire { width: 96px; height: 96px; }
+  .actions .act-bomb { width: 56px; height: 56px; margin-left: 6px; margin-bottom: 6px; bottom: 100%; }
 }
 
 /* hide controls during title/gameover overlays */
