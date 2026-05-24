@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=72";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=72";
+import { Cube } from "./cube.js?v=73";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=73";
 
 export class Stage {
   constructor(stageDef) {
@@ -41,29 +41,39 @@ export class Stage {
     return depth;
   }
 
-  startWave(now) {
-    const wave = this.def.waves[this.waveIndex];
-    const layout = wave.layout;
+  // Spawn every wave's cubes up front, each tagged with its waveIndex.
+  // Only the cubes whose waveIndex matches stage.waveIndex tick / are
+  // capturable; later waves stand still as a visible wall preview.
+  spawnAllWaves() {
     this.cubes = [];
+    for (let w = 0; w < this.def.waves.length; w++) {
+      const layout = this.def.waves[w].layout;
+      const rows = layout.length;
+      const spawnD = this._waveSpawnEdge(w);
+      // First entry of layout = furthest back (last to arrive).
+      // Last entry of layout = closest to player (first to arrive).
+      // Layout row (rows - 1 - i) sits at gz = spawnD - 1 + i.
+      for (let i = 0; i < rows; i++) {
+        const rowStr = layout[rows - 1 - i];
+        for (let x = 0; x < this.gridW && x < rowStr.length; x++) {
+          const ch = rowStr[x];
+          if (ch === "." || ch === " ") continue;
+          if (ch !== CUBE_TYPE.NORMAL && ch !== CUBE_TYPE.FORBIDDEN && ch !== CUBE_TYPE.ADVANTAGE) continue;
+          const cube = new Cube(ch, x, spawnD - 1 + i);
+          cube.waveIndex = w;
+          this.cubes.push(cube);
+        }
+      }
+    }
+    this.totalCubes = this.cubes.filter(c => c.waveIndex === 0).length;
+  }
+
+  startWave(now) {
     this.forbiddenDestroyed = false;
     this.floorLost = false;
     this.pendingRowDrop = 0;
     this.forbiddenFellOff = 0;
-    const rows = layout.length;
-    const spawnD = this._waveSpawnEdge(this.waveIndex);
-    // First entry of layout = furthest back (last to arrive).
-    // Last entry of layout = closest to player (first to arrive).
-    // Layout row (rows - 1 - i) sits at gz = spawnD - 1 + i.
-    for (let i = 0; i < rows; i++) {
-      const rowStr = layout[rows - 1 - i];
-      for (let x = 0; x < this.gridW && x < rowStr.length; x++) {
-        const ch = rowStr[x];
-        if (ch === "." || ch === " ") continue;
-        if (ch !== CUBE_TYPE.NORMAL && ch !== CUBE_TYPE.FORBIDDEN && ch !== CUBE_TYPE.ADVANTAGE) continue;
-        this.cubes.push(new Cube(ch, x, spawnD - 1 + i));
-      }
-    }
-    this.totalCubes = this.cubes.length;
+    this.totalCubes = this.cubes.filter(c => c.waveIndex === this.waveIndex && !c.dead).length;
     this.nextTickAt = now + this.tickMs;
   }
 
@@ -72,12 +82,23 @@ export class Stage {
 
   remainingCubes() {
     let n = 0;
-    for (const c of this.cubes) if (!c.dead) n++;
+    for (const c of this.cubes) {
+      if (c.waveIndex === this.waveIndex && !c.dead) n++;
+    }
     return n;
   }
 
   visibleCubes() {
     return this.cubes.filter(c => !c.dead);
+  }
+
+  activeCubeAt(x, z) {
+    for (const c of this.cubes) {
+      if (c.dead || c.fallingOff) continue;
+      if (c.waveIndex !== this.waveIndex) continue;
+      if (c.gx === x && c.gz === z) return c;
+    }
+    return null;
   }
 
   cubeAt(x, z) {
@@ -121,6 +142,9 @@ export class Stage {
 
     for (const cube of this.cubes) {
       if (cube.dead || cube.fallingOff) continue;
+      // Dormant: this cube belongs to a future wave and stands still as a
+      // wall preview until its turn arrives.
+      if (cube.waveIndex !== this.waveIndex) continue;
       const fromZ = cube.gz;
       const toZ = cube.gz - 1;
 
@@ -168,7 +192,10 @@ export class Stage {
   }
 
   isCleared() {
-    for (const c of this.cubes) if (!c.dead) return false;
+    for (const c of this.cubes) {
+      if (c.waveIndex !== this.waveIndex) continue;
+      if (!c.dead) return false;
+    }
     return true;
   }
 

@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=72";
-import { Player } from "./player.js?v=72";
-import { Stage } from "./stage.js?v=72";
-import { STAGES } from "./stages.js?v=72";
-import { GRID_W, GRID_D } from "./config.js?v=72";
+import { Grid } from "./grid.js?v=73";
+import { Player } from "./player.js?v=73";
+import { Stage } from "./stage.js?v=73";
+import { STAGES } from "./stages.js?v=73";
+import { GRID_W, GRID_D } from "./config.js?v=73";
 
 const STATE = {
   TITLE: "title",
@@ -89,6 +89,7 @@ export class Game {
     this.renderer.resetFollow?.(this.player);
     this._dropQueue = 0;
     this._dropNextAt = 0;
+    this.stage.spawnAllWaves();
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.setStage(def.id);
@@ -118,6 +119,12 @@ export class Game {
     this.renderer.resetFollow?.(this.player);
     this._dropQueue = 0;
     this._dropNextAt = 0;
+    this.stage.spawnAllWaves();
+    // Kill cubes from any wave we skipped over so they don't sit as
+    // walls in front of the jumped-to wave.
+    for (const c of this.stage.cubes) {
+      if (c.waveIndex < waveIndex) c.dead = true;
+    }
     this.stage.startWave(now);
     this.state = STATE.PLAYING;
     this.hud.hideGameOver();
@@ -132,7 +139,8 @@ export class Game {
     this.stage.advanceWave();
     this.grid.clearMark();
     this.grid.clearBombs();
-    this.renderer.clearAllCubes();
+    // Don't clearAllCubes here: dormant future-wave cubes are already in
+    // the scene and need to persist so they can wake up in place.
     this._dropQueue = 0;
     this._dropNextAt = 0;
     this.stage.startWave(now);
@@ -213,7 +221,7 @@ export class Game {
     const m = this.grid.mark;
     if (!m) return;
     this.renderer.fireBlast?.(m.x, m.z);
-    const hit = this.stage.cubes.find(c => !c.dead && c.gx === m.x && c.gz === m.z);
+    const hit = this.stage.activeCubeAt(m.x, m.z);
     if (!hit) {
       this.grid.clearMark();
       return;
@@ -255,6 +263,7 @@ export class Game {
     for (const bomb of bombs) {
       for (const cube of this.stage.cubes) {
         if (cube.dead || killedSet.has(cube.id)) continue;
+        if (cube.waveIndex !== this.stage.waveIndex) continue;
         if (Math.abs(cube.gx - bomb.cx) <= 1 && Math.abs(cube.gz - bomb.cz) <= 1) {
           killedSet.add(cube.id);
           cube.dead = true;
