@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=56";
-import { Player } from "./player.js?v=56";
-import { Stage } from "./stage.js?v=56";
-import { STAGES } from "./stages.js?v=56";
-import { GRID_W, GRID_D } from "./config.js?v=56";
+import { Grid } from "./grid.js?v=57";
+import { Player } from "./player.js?v=57";
+import { Stage } from "./stage.js?v=57";
+import { STAGES } from "./stages.js?v=57";
+import { GRID_W, GRID_D } from "./config.js?v=57";
 
 const STATE = {
   TITLE: "title",
