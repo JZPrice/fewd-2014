@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=88";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=89";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -575,9 +575,10 @@ export class Renderer {
     const geo = new THREE.BoxGeometry(w, h, w);
     const mat = new THREE.ShaderMaterial({
       uniforms: {
-        uColor:   { value: new THREE.Color(COLORS.mark) },
-        uOpacity: { value: 0.55 },
-        uHeight:  { value: h },
+        uColor:    { value: new THREE.Color(COLORS.mark) },
+        uColorTop: { value: new THREE.Color(COLORS.markTop) },
+        uOpacity:  { value: 0.55 },
+        uHeight:   { value: h },
       },
       vertexShader: `
         varying float vYrel;
@@ -590,10 +591,15 @@ export class Renderer {
       fragmentShader: `
         varying float vYrel;
         uniform vec3 uColor;
+        uniform vec3 uColorTop;
         uniform float uOpacity;
         void main() {
-          float a = pow(1.0 - clamp(vYrel, 0.0, 1.0), 1.7) * uOpacity;
-          gl_FragColor = vec4(uColor, a);
+          float y = clamp(vYrel, 0.0, 1.0);
+          float a = pow(1.0 - y, 1.7) * uOpacity;
+          // Ease toward the top color faster than linear so the upper
+          // half is clearly yellow, not just a hint.
+          vec3 col = mix(uColor, uColorTop, smoothstep(0.0, 1.0, y));
+          gl_FragColor = vec4(col, a);
         }
       `,
       transparent: true,
@@ -619,9 +625,10 @@ export class Renderer {
     pgeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const pmat = new THREE.ShaderMaterial({
       uniforms: {
-        uColor:  { value: new THREE.Color(COLORS.mark) },
-        uHeight: { value: h },
-        uSize:   { value: 70.0 },
+        uColor:    { value: new THREE.Color(COLORS.mark) },
+        uColorTop: { value: new THREE.Color(COLORS.markTop) },
+        uHeight:   { value: h },
+        uSize:     { value: 70.0 },
       },
       vertexShader: `
         varying float vYrel;
@@ -637,6 +644,7 @@ export class Renderer {
       fragmentShader: `
         varying float vYrel;
         uniform vec3 uColor;
+        uniform vec3 uColorTop;
         void main() {
           vec2 c = gl_PointCoord - vec2(0.5);
           float d = length(c);
@@ -644,7 +652,8 @@ export class Renderer {
           float soft   = 1.0 - smoothstep(0.15, 0.5, d);
           float bornIn = smoothstep(0.0, 0.10, vYrel);
           float fade   = 1.0 - smoothstep(0.0, 0.95, vYrel);
-          gl_FragColor = vec4(uColor + vec3(0.25) * fade, soft * bornIn * fade);
+          vec3 col = mix(uColor, uColorTop, smoothstep(0.0, 1.0, vYrel));
+          gl_FragColor = vec4(col + vec3(0.20) * fade, soft * bornIn * fade);
         }
       `,
       transparent: true,
@@ -669,6 +678,7 @@ export class Renderer {
     // particles in red at (x, z) for `dur` ms, then deactivates.
     this._markBlast = { active: false, t0: 0, x: 0, z: 0, dur: 520 };
     this._markBaseColor = new THREE.Color(COLORS.mark);
+    this._markBaseColorTop = new THREE.Color(COLORS.markTop);
     this._markBlastColor = new THREE.Color(0xff2818);
   }
 
@@ -703,7 +713,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=88", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=89", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1107,11 +1117,13 @@ export class Renderer {
     const vel = data.vel;
 
     if (mode === "idle") {
-      // Blue gradient column with a gentle breathing pulse.
+      // Green-to-yellow gradient column with a gentle breathing pulse.
       this.markMesh.material.uniforms.uColor.value.copy(this._markBaseColor);
+      this.markMesh.material.uniforms.uColorTop.value.copy(this._markBaseColorTop);
       this.markMesh.material.uniforms.uOpacity.value =
         0.45 + 0.20 * (0.5 + 0.5 * Math.sin((now / 1000) * 3));
       this.markParticles.material.uniforms.uColor.value.copy(this._markBaseColor);
+      this.markParticles.material.uniforms.uColorTop.value.copy(this._markBaseColorTop);
       // Particles drift upward, wrap to the floor when they cap out.
       const speed = 0.7;
       for (let i = 0; i < data.count; i++) {
@@ -1124,12 +1136,16 @@ export class Renderer {
         }
       }
     } else {
-      // Blast: red shaft fading out + particles flying outward.
+      // Blast: red shaft fading out + particles flying outward. Flatten
+      // the gradient to a single hot color so the burst doesn't read as
+      // half-yellow.
       const u = Math.min(1, (now - blast.t0) / blast.dur);
       this.markMesh.material.uniforms.uColor.value.copy(this._markBlastColor);
+      this.markMesh.material.uniforms.uColorTop.value.copy(this._markBlastColor);
       // Quick "pop" — bright early, fade by end.
       this.markMesh.material.uniforms.uOpacity.value = (1.0 - u) * 1.1;
       this.markParticles.material.uniforms.uColor.value.copy(this._markBlastColor);
+      this.markParticles.material.uniforms.uColorTop.value.copy(this._markBlastColor);
       // Integrate velocity, apply a touch of gravity so the burst arcs.
       const g = 6.0;
       for (let i = 0; i < data.count; i++) {
