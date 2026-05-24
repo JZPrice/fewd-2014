@@ -278,7 +278,9 @@ body.touch #touch-controls {
    never shifts the main button. */
 .actions {
   position: absolute;
-  right: max(40px, calc(env(safe-area-inset-right) + 24px));
+  /* Anchored well inside the right edge so the satellite has room to live
+     on the main button's upper-right corner without leaving the screen. */
+  right: max(100px, calc(env(safe-area-inset-right) + 84px));
   bottom: max(16px, env(safe-area-inset-bottom));
   width: 96px;
   height: 96px;
@@ -296,14 +298,13 @@ body.touch #touch-controls {
   height: 96px;
 }
 
-/* Satellite sits diagonally above-and-left of the main button. The thumb's
-   natural arc from a bottom-right rest sweeps up-and-left, so this is the
-   shortest reach without leaving the comfortable thumb cone. */
+/* Satellite sits diagonally above-and-right of the main button. Main is
+   shifted inward from the edge to make room; thumb sweeps up-and-right. */
 .actions .act-bomb {
   position: absolute;
-  right: 100%;
+  left: 100%;
   bottom: 100%;
-  margin-right: 10px;
+  margin-left: 10px;
   margin-bottom: 10px;
   width: 72px;
   height: 72px;
@@ -371,9 +372,9 @@ body.touch .touch-only { display: block; }
   #hud { font-size: 12px; padding: 8px 12px; }
   .joystick { width: 140px; height: 140px; }
   .joy-stick { width: 54px; height: 54px; }
-  .actions { width: 88px; height: 88px; right: max(32px, calc(env(safe-area-inset-right) + 18px)); }
+  .actions { width: 88px; height: 88px; right: max(86px, calc(env(safe-area-inset-right) + 70px)); }
   .actions .act-mark-fire { width: 88px; height: 88px; }
-  .actions .act-bomb { width: 64px; height: 64px; margin-right: 10px; margin-bottom: 10px; bottom: 100%; }
+  .actions .act-bomb { width: 64px; height: 64px; margin-left: 10px; margin-bottom: 10px; bottom: 100%; }
 }
 
 /* hide controls during title/gameover overlays */
