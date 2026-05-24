@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=113";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=114";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -151,9 +151,11 @@ export class Renderer {
     this._lookZ = -(GRID_D - 1) / 2;
     this._baseCamY = 5.8;
     this._baseCamZ = 5.8;
+    this._followDZ = 6.0;
+    this._lookY = -3.5;
     this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 100);
     this.camera.position.set(0, this._baseCamY, this._baseCamZ);
-    this.camera.lookAt(0, -3.5, this._lookZ);
+    this.camera.lookAt(0, this._lookY, this._lookZ);
 
     // Inset factor shared by floor tiles, cubes, and underbody columns -
     // see GROUT_INSET in config. Held as an instance field so the debug
@@ -850,7 +852,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=113", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=114", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1438,7 +1440,7 @@ export class Renderer {
     }
 
     const lookX = this._lookPosX * 0.65;
-    this.camera.lookAt(lookX, -3.5, this._lookPosZ);
+    this.camera.lookAt(lookX, this._lookY, this._lookPosZ);
   }
 
   pulseMark(strength) {
@@ -1469,17 +1471,17 @@ export class Renderer {
     // the camera sits. Smaller = tighter framing. Closer for narrower screens.
     let camY, followDZ, fov;
     if (aspect < 0.9) {
-      fov = 68; camY = 7.2; followDZ = 8.0;
+      fov = 62; camY = 6.4; followDZ = 7.0;
     } else if (aspect < 1.4) {
-      fov = 62; camY = 6.0; followDZ = 6.8;
+      fov = 56; camY = 5.4; followDZ = 6.0;
     } else {
-      fov = 58; camY = 5.2; followDZ = 6.0;
+      fov = 52; camY = 4.6; followDZ = 5.4;
     }
     this.camera.fov = fov;
     this._baseCamY = camY;
     this._followDZ = followDZ;
     this.camera.position.set(0, camY, this._lookZ + followDZ);
-    this.camera.lookAt(0, -3.5, this._lookZ);
+    this.camera.lookAt(0, this._lookY, this._lookZ);
     this.camera.updateProjectionMatrix();
   }
 

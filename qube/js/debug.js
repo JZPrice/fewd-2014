@@ -3,7 +3,7 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
-import { STAGES } from "./stages.js?v=113";
+import { STAGES } from "./stages.js?v=114";
 
 export class Debugger {
   constructor(game) {
@@ -102,6 +102,47 @@ export class Debugger {
             <div class="dbg-stat"><span>last shake</span><b id="dbg-shake">—</b></div>
             <div class="dbg-row">
               <button data-act="shaketest">shake test</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dbg-section" data-sec="framing">
+          <button class="dbg-section-head">Framing</button>
+          <div class="dbg-section-body">
+            <div class="dbg-stat">
+              <span>fov</span>
+              <span class="dbg-tune">
+                <button data-act="fov--">−1</button>
+                <b id="dbg-fov">—</b>
+                <button data-act="fov++">+1</button>
+              </span>
+            </div>
+            <div class="dbg-stat">
+              <span>camY</span>
+              <span class="dbg-tune">
+                <button data-act="camy--">−0.2</button>
+                <b id="dbg-camy">—</b>
+                <button data-act="camy++">+0.2</button>
+              </span>
+            </div>
+            <div class="dbg-stat">
+              <span>followDZ</span>
+              <span class="dbg-tune">
+                <button data-act="dz--">−0.2</button>
+                <b id="dbg-dz">—</b>
+                <button data-act="dz++">+0.2</button>
+              </span>
+            </div>
+            <div class="dbg-stat">
+              <span>lookY</span>
+              <span class="dbg-tune">
+                <button data-act="looky--">−0.2</button>
+                <b id="dbg-looky">—</b>
+                <button data-act="looky++">+0.2</button>
+              </span>
+            </div>
+            <div class="dbg-row">
+              <button data-act="copyframing" id="dbg-copyframing">copy framing</button>
             </div>
           </div>
         </div>
@@ -213,6 +254,15 @@ export class Debugger {
       case "spd++": g.player.speed = Math.min(20,  g.player.speed + 0.5); break;
       case "cam--": g.renderer.followHalflife = Math.max(50,   (g.renderer.followHalflife ?? 300) - 50); break;
       case "cam++": g.renderer.followHalflife = Math.min(1500, (g.renderer.followHalflife ?? 300) + 50); break;
+      case "fov--": this._setFov((g.renderer.camera?.fov ?? 50) - 1); break;
+      case "fov++": this._setFov((g.renderer.camera?.fov ?? 50) + 1); break;
+      case "camy--": g.renderer._baseCamY = Math.max(0.5, (g.renderer._baseCamY ?? 5) - 0.2); break;
+      case "camy++": g.renderer._baseCamY = Math.min(20,  (g.renderer._baseCamY ?? 5) + 0.2); break;
+      case "dz--": g.renderer._followDZ = Math.max(0.5, (g.renderer._followDZ ?? 6) - 0.2); break;
+      case "dz++": g.renderer._followDZ = Math.min(20,  (g.renderer._followDZ ?? 6) + 0.2); break;
+      case "looky--": g.renderer._lookY = (g.renderer._lookY ?? -3.5) - 0.2; break;
+      case "looky++": g.renderer._lookY = (g.renderer._lookY ?? -3.5) + 0.2; break;
+      case "copyframing": this._copyFraming(); break;
       case "shaketest": g.renderer.shake?.(0.20, 280); break;
       case "copy":  this._copyState(); break;
       case "hap":
@@ -236,6 +286,35 @@ export class Debugger {
         if (s) for (const c of s.cubes) c.dead = true;
         break;
     }
+  }
+
+  _setFov(v) {
+    const cam = this.game.renderer?.camera;
+    if (!cam) return;
+    cam.fov = Math.max(20, Math.min(120, v));
+    cam.updateProjectionMatrix();
+  }
+
+  _copyFraming() {
+    const r = this.game.renderer;
+    if (!r) return;
+    const fov = r.camera?.fov ?? 0;
+    const text = `fov: ${fov.toFixed(0)}, camY: ${(r._baseCamY ?? 0).toFixed(2)}, followDZ: ${(r._followDZ ?? 0).toFixed(2)}, lookY: ${(r._lookY ?? 0).toFixed(2)}`;
+    const btn = document.getElementById("dbg-copyframing");
+    const flash = (msg) => {
+      if (!btn) return;
+      const orig = btn.textContent;
+      btn.textContent = msg;
+      setTimeout(() => { btn.textContent = orig; }, 1200);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => flash("copied!"))
+        .catch(() => flash("copy failed - see console"));
+    } else {
+      flash("clipboard n/a");
+    }
+    console.log(text);
   }
 
   _copyState() {
@@ -297,6 +376,10 @@ export class Debugger {
       $("dbg-epms").textContent = `${ep}ms`;
       $("dbg-spd").textContent = `${(1000 / g.player.speed).toFixed(0)}ms/tile`;
       $("dbg-cam").textContent = `${g.renderer.followHalflife ?? 300}ms`;
+      $("dbg-fov").textContent = (g.renderer.camera?.fov ?? 0).toFixed(0);
+      $("dbg-camy").textContent = (g.renderer._baseCamY ?? 0).toFixed(2);
+      $("dbg-dz").textContent = (g.renderer._followDZ ?? 0).toFixed(2);
+      $("dbg-looky").textContent = (g.renderer._lookY ?? 0).toFixed(2);
       const ls = g.renderer._lastShake;
       $("dbg-shake").textContent = ls
         ? `amp ${ls.amp.toFixed(2)} / ${ls.durMs}ms (${((Date.now() - ls.at) / 1000).toFixed(1)}s ago)`

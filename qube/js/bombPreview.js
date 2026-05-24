@@ -15,9 +15,9 @@ export class BombPreview {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 20);
-    this.camera.position.set(0, 0.45, 3.2);
-    this.camera.lookAt(0, 0.15, 0);
+    this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+    this.camera.position.set(0, 0.15, 2.4);
+    this.camera.lookAt(0, 0, 0);
 
     const hemi = new THREE.HemisphereLight(0xbac0d8, 0x303040, 0.95);
     this.scene.add(hemi);
@@ -36,13 +36,14 @@ export class BombPreview {
     this._running = false;
     this._loop = this._loop.bind(this);
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=113", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=114", (gltf) => {
       const model = gltf.scene;
       model.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-      // Model is ~0.011 raw units across with a 100x armature scale; the
-      // pivot sits at body center. Lift slightly so the fuse cap reads.
-      model.scale.setScalar(40);
-      model.position.y = -0.05;
+      // The loaded scene already bakes the model's 100x armature scale,
+      // so it reads at ~1.1 units in scene-root space. A modest scale +
+      // pulled-back camera frames it cleanly inside the round button.
+      model.scale.setScalar(1.0);
+      model.position.y = -0.1;
       this.pivot.add(model);
     }, undefined, (err) => {
       console.warn("bomb preview failed to load:", err);
