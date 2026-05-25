@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=136";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=137";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -558,10 +558,11 @@ export class Renderer {
       uniforms: { uTime: { value: 0 } },
       vertexShader: `
         uniform float uTime;
-        varying float vNoise;
         varying vec3 vPos;
+        // Coarse value noise for the 3D surface displacement only -
+        // color detail is done in the fragment with proper Perlin fBm.
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        float noise(vec2 p) {
+        float vnoise(vec2 p) {
           vec2 i = floor(p), f = fract(p);
           f = f * f * (3.0 - 2.0 * f);
           float a = hash(i), b = hash(i + vec2(1.0, 0.0));
@@ -570,40 +571,70 @@ export class Renderer {
         }
         void main() {
           vec3 pos = position;
-          float n = noise(pos.xy * 0.45 + vec2(uTime * 0.15, uTime * 0.10));
-          n += 0.5 * noise(pos.xy * 0.95 + vec2(-uTime * 0.20, uTime * 0.13));
+          float n = vnoise(pos.xy * 0.45 + vec2(uTime * 0.15, uTime * 0.10));
+          n += 0.5 * vnoise(pos.xy * 0.95 + vec2(-uTime * 0.20, uTime * 0.13));
           n /= 1.5;
           pos.z += (n - 0.5) * 1.6;
-          vNoise = n;
           vPos = pos;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
         uniform float uTime;
-        varying float vNoise;
         varying vec3 vPos;
+
+        // Fast non-sin hash (Dave Hoskins / IQ style). Cheaper than the
+        // sin-based hashes for use inside the fBm loop.
+        vec2 hash22(vec2 p) {
+          vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+          p3 += dot(p3, p3.yzx + 33.33);
+          return fract((p3.xx + p3.yz) * p3.zy) * 2.0 - 1.0;
+        }
+        // 2D Perlin gradient noise -> [0, 1].
+        float perlin(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          float a = dot(hash22(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0));
+          float b = dot(hash22(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0));
+          float c = dot(hash22(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0));
+          float d = dot(hash22(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0));
+          float ab = mix(a, b, u.x);
+          float cd = mix(c, d, u.x);
+          return mix(ab, cd, u.y) * 0.5 + 0.5;
+        }
+        // 4-octave fBm gives the fine bubble grain.
+        float fbm(vec2 p) {
+          float v = 0.0;
+          float amp = 0.55;
+          for (int i = 0; i < 4; i++) {
+            v += perlin(p) * amp;
+            p *= 2.03;
+            amp *= 0.5;
+          }
+          return v;
+        }
         void main() {
-          // Mostly black void. Bubbles emerge only at very high noise
-          // peaks; they bloom in and recede on their own pulse phases.
+          // Higher base frequency + multi-octave fBm = much finer grain
+          // than the single-octave value noise we had before.
+          vec2 q = vPos.xy * 1.6 + vec2(uTime * 0.11, uTime * 0.08);
+          float n = fbm(q);
+
+          // Mostly black void. Bubbles emerge only at noise peaks; they
+          // bloom in and recede on their own pulse phases.
           vec3 voidCol = vec3(0.01, 0.015, 0.02);
           vec3 hot     = vec3(0.55, 1.00, 0.40);
           vec3 hotCore = vec3(0.85, 1.00, 0.70);
 
-          // Sharp bubble threshold so most of the surface stays black.
-          float bubble = smoothstep(0.66, 0.80, vNoise);
-          // Each bubble pulses on its own phase (driven by world pos).
+          float bubble = smoothstep(0.48, 0.64, n);
           float pulse = 0.45 + 0.55 * sin(uTime * 0.9
                           + vPos.x * 0.55 + vPos.y * 0.45);
           float intensity = bubble * pulse;
 
           vec3 col = voidCol + hot * intensity;
-          // Bright hot core only at the very top of the noise spikes
-          col += hotCore * smoothstep(0.82, 0.94, vNoise) * pulse;
+          col += hotCore * smoothstep(0.68, 0.83, n) * pulse;
 
-          // Distance fade: goo fades to black as it gets far from the
-          // platform, so it feels like the bubbles are surfacing out of
-          // a dark distance rather than a glowing green floor everywhere.
+          // Distance fade so the bubbles surface out of the dark.
           float dist = length(vPos.xy);
           float fade = 1.0 - smoothstep(14.0, 38.0, dist);
           col = mix(voidCol, col, fade);
@@ -1209,7 +1240,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=136", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=137", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
