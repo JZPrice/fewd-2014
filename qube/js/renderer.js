@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=121";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=122";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -161,10 +161,10 @@ export class Renderer {
     this._defaultCamY = 5.8;
     this._defaultFollowDZ = 6.0;
     this._defaultLookY = -3.5;
-    this._tightFov = 48;
-    this._tightCamY = 3.56;
-    this._tightFollowDZ = 7.49;
-    this._tightLookY = -2.39;
+    this._tightFov = 39;
+    this._tightCamY = 1.80;
+    this._tightFollowDZ = 7.80;
+    this._tightLookY = -1.70;
     this._tightBlend = 0;
     this._tightBlendTarget = 0;
     this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 100);
@@ -866,7 +866,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=121", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=122", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
