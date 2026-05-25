@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=131");
+      const a = new Audio("assets/audio/silence.wav?v=132");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -136,24 +136,22 @@ export class AudioEngine {
 
   // ----- Music -------------------------------------------------------------
   //
-  // Toccata-and-Fugue D-minor REMIX with chord punctuation throughout.
-  // Each bar is a custom event list so we can interleave melodic flourishes
-  // (descending Bach-style runs AND spiny ascending sweeps) with chord
-  // stabs that hit on the beats between phrases.
+  // Berlin-school climbing-arpeggio piece in D dorian. Constant 16th-note
+  // arpeggios cycle through the chord notes, a sustained pad breathes
+  // behind, the Moog bass pulses underneath, and a sparse lead floats
+  // on top in the later sections. The progression climbs through five
+  // 8-bar sections that each add a layer of complexity. ~2 minutes
+  // per loop at 78 BPM.
   //
-  // 8-bar loop in D minor at 72 BPM:
-  //   Bar 1: Toccata opening - A5 mordent + descent, ends on C#°7 dim crash
-  //   Bar 2: Spiny ASCENDING run G4->G5 with Gm chord stabs
-  //   Bar 3: Toccata call in F - F5 mordent + descent, lands on Bb chord
-  //   Bar 4: Mid-climax - A7 + ascending arp + descending finale + Dm stab
-  //   Bar 5: QUICK CHORD CLIMB Dm Em F Gm (one chord per beat, ascending),
-  //          walking bass D-E-F-G, melody D5 E5 F5 G5 on top
-  //   Bar 6: Climb continues Am Bb C Dm, walking bass A-Bb-C-D, melody
-  //          A5 Bb5 C6 D6 - peak of the arch
-  //   Bar 7: TENSION sustained C#°7 + high D6/C#6 trill + chromatic
-  //          descent down to A5
-  //   Bar 8: FULL RESOLUTION - massive multi-octave Dm crash + dramatic
-  //          descending sweep + final low Dm rumble, rings into next loop
+  // Sections (each 8 bars):
+  //   A (bars  1- 8): intro - arpeggio + pad + bass, no lead
+  //   B (bars  9-16): + sparse ascending lead melody
+  //   C (bars 17-24): walking climb - chord roots walk up scale,
+  //                   walking bass under it
+  //   D (bars 25-32): octave arp (two-octave climb each bar), bigger
+  //                   melody phrases
+  //   E (bars 33-40): climax - widest arp + ascending lead octave-jump
+  //                   + final cadence back to Dm
   //
   // Notes are scheduled bar-by-bar via a 100ms look-ahead; oscillators
   // self-stop on their scheduled end time, so stopMusic() only needs to
@@ -164,24 +162,22 @@ export class AudioEngine {
     const t0 = ctx.currentTime + 0.15;
 
     // Drier room than the previous cathedral wash - Moog wants to be
-    // up-front and squelchy, not echoing through a chapel. Short IR
-    // (~1.2s) with a fast falloff plus a small wet send keeps a hint
-    // of space without smearing the filter character.
+    // up-front and squelchy, not echoing through a chapel.
     const conv = ctx.createConvolver();
-    conv.buffer = this._makeCathedralIR(1.2, 3.5);
+    conv.buffer = this._makeCathedralIR(1.4, 3.0);
 
-    const wet = ctx.createGain(); wet.gain.value = 0.22;
+    const wet = ctx.createGain(); wet.gain.value = 0.25;
     const dry = ctx.createGain(); dry.gain.value = 1.0;
     conv.connect(wet);
 
     const sub = ctx.createGain();
     sub.gain.setValueAtTime(0, t0);
-    sub.gain.linearRampToValueAtTime(1.0, t0 + 2.5);
+    sub.gain.linearRampToValueAtTime(1.0, t0 + 3.0);
     dry.connect(sub);
     wet.connect(sub);
     sub.connect(this.musicGain);
 
-    const organIn = ctx.createGain(); organIn.gain.value = 0.55;
+    const organIn = ctx.createGain(); organIn.gain.value = 0.50;
     organIn.connect(dry);
     organIn.connect(conv);
 
@@ -189,145 +185,58 @@ export class AudioEngine {
     moogIn.connect(dry);
     moogIn.connect(conv);
 
-    const beat = 60 / 72;
+    // 78 BPM = bouncy and forward-moving without feeling rushed. 40
+    // bars at this tempo runs ~2:03.
+    const beat = 60 / 78;
     const bar  = beat * 4;
 
-    // Sub-bass + bass.
-    const D1 = 36.71, G1 = 49.00, Bb1 = 58.27, A1 = 55.00;
-    // Mid + low chord pitches.
-    const D2 = 73.42, F2 = 87.31, A2 = 110.00;
-    const G2 = 98.00, Bb2 = 116.54;
-    const D3 = 146.83, F3 = 174.61, A3 = 220.00;
-    const G3 = 196.00, Bb3 = 233.08, Csh3 = 138.59, E3 = 164.81;
-    // High-register chord + melody pitches.
-    const B3 = 246.94, C4 = 261.63;
-    const D4 = 293.66, F4 = 349.23, A4 = 440.00;
-    const Csh4 = 277.18, E4 = 329.63, G4 = 392.00, Bb4 = 466.16;
-    const Eb4 = 311.13;
-    const C5 = 523.25, Csh5 = 554.37, D5 = 587.33, Eb5 = 622.25;
-    const E5 = 659.25, F5 = 698.46, G5 = 783.99, A5 = 880.00;
-    const Fsh5 = 739.99;
-    // Top octave for the climax climb.
-    const Bb5 = 932.33, B5 = 987.77, C6 = 1046.50, Csh6 = 1108.73;
-    const D6 = 1174.66, E6 = 1318.51;
-    // Sub-bass walking notes.
-    const E1 = 41.20, F1 = 43.65, Cs1 = 34.65;
+    // Helper: midi-style pitch lookup. Cleaner than 60 named consts.
+    const SEMI = { C: 0, Cs: 1, D: 2, Eb: 3, E: 4, F: 5, Fs: 6, G: 7, Ab: 8, A: 9, Bb: 10, B: 11 };
+    const p = (name, oct) => 440 * Math.pow(2, ((oct + 1) * 12 + SEMI[name] - 69) / 12);
 
-    // Helpers to build melody segments.
-    const note = (when, f, dur) => ({ type: "note", when, f, dur });
-    const chord = (when, freqs, dur, kind = "stab") => ({ type: "chord", when, freqs, dur, kind });
-    const mord = (when, top, neighbor) => [
-      note(when + 0.00, top, 0.06),
-      note(when + 0.06, neighbor, 0.06),
-      note(when + 0.12, top, beat * 0.50),
-    ];
-    const run = (when, freqs, noteDur) => freqs.map((f, i) => note(when + i * noteDur, f, noteDur * 0.92));
+    // Chord library. `notes` is the close-position mid-register voicing;
+    // `bass` is the deep root used by the Moog pulse.
+    const CHORDS = {
+      Dm: { notes: [p("D", 3), p("F", 3), p("A", 3)], bass: p("D", 1), arp: ["D", "F", "A"] },
+      Em: { notes: [p("E", 3), p("G", 3), p("B", 3)], bass: p("E", 1), arp: ["E", "G", "B"] },
+      F:  { notes: [p("F", 3), p("A", 3), p("C", 4)], bass: p("F", 1), arp: ["F", "A", "C"] },
+      G:  { notes: [p("G", 3), p("B", 3), p("D", 4)], bass: p("G", 1), arp: ["G", "B", "D"] },
+      Am: { notes: [p("A", 3), p("C", 4), p("E", 4)], bass: p("A", 1), arp: ["A", "C", "E"] },
+      Bb: { notes: [p("Bb", 3), p("D", 4), p("F", 4)], bass: p("Bb", 1), arp: ["Bb", "D", "F"] },
+      C:  { notes: [p("C", 4), p("E", 4), p("G", 4)], bass: p("C", 2), arp: ["C", "E", "G"] },
+      D:  { notes: [p("D", 4), p("Fs", 4), p("A", 4)], bass: p("D", 2), arp: ["D", "Fs", "A"] },
+      A7: { notes: [p("A", 3), p("Cs", 4), p("E", 4), p("G", 4)], bass: p("A", 1), arp: ["A", "Cs", "E"] },
+    };
 
-    // Bar 1 - Toccata opening (D minor), ends on C#°7 diminished crash.
-    const BAR_TOC_DM = [
-      ...mord(0, A5, G5),
-      ...run(beat * 0.85, [G5, F5, E5, D5, Csh5], beat * 0.22),
-      note(beat * 1.95, D5, beat * 0.40),
-      // Bach's signature diminished 7 chord (C# E G Bb) - the tension
-      chord(beat * 2.50, [Csh4, E4, G4, Bb4], beat * 1.40, "dim"),
-      // Punctuating mid-chord stab
-      chord(beat * 3.20, [Csh3, E3, G3, Bb3], beat * 0.70, "stab"),
+    // 40-bar progression. Bars 1-16 use the main vamp; 17-24 walk
+    // chord roots up the D-dorian scale; 25-32 returns to the vamp
+    // with thicker layers; 33-40 is the climax cadence.
+    const PROG = [
+      // Section A (intro)
+      "Dm", "F", "C", "Am",  "Dm", "F", "G",  "Bb",
+      // Section B (add lead)
+      "Dm", "F", "C", "Am",  "Dm", "F", "G",  "Bb",
+      // Section C (walking climb up D-dorian scale)
+      "Dm", "Em", "F", "G",  "Am", "Bb", "C", "D",
+      // Section D (back to vamp, thicker arp + bigger lead)
+      "Dm", "F", "C", "Am",  "Dm", "F", "G",  "Bb",
+      // Section E (climax progression with leading-tone A7)
+      "Dm", "Bb", "F", "C",  "Bb", "Am", "A7", "Dm",
     ];
 
-    // Bar 2 - Spiny ASCENDING run with chord punctuation.
-    const BAR_UP_GM = [
-      chord(0,            [G3, Bb3, D4], beat * 0.40, "stab"),
-      ...run(beat * 0.40, [G4, A4, Bb4, C5, D5, Eb5], beat * 0.20),
-      chord(beat * 1.60, [G3, Bb3, D4], beat * 0.40, "stab"),
-      ...run(beat * 2.00, [E5, F5, G5, A5], beat * 0.20),
-      chord(beat * 2.80, [D3, G3, Bb3, D4, G4], beat * 1.20, "stab"),
+    // Per-section flags. complexity tunes filter brightness; lead/octave
+    // gate the optional layers; walking adds a beat-by-beat bass walk.
+    const SECTIONS = [
+      { lead: false, octaveArp: false, walking: false, filterBrightness: 0.9 },
+      { lead: true,  octaveArp: false, walking: false, filterBrightness: 1.0 },
+      { lead: true,  octaveArp: false, walking: true,  filterBrightness: 1.1 },
+      { lead: true,  octaveArp: true,  walking: false, filterBrightness: 1.2 },
+      { lead: true,  octaveArp: true,  walking: false, filterBrightness: 1.3 },
     ];
-
-    // Bar 3 - Toccata-style call in F (descending), lands on Bb.
-    const BAR_TOC_BB = [
-      ...mord(0, F5, E5),
-      ...run(beat * 0.85, [Eb5, D5, C5, Bb4, A4], beat * 0.22),
-      note(beat * 1.95, Bb4, beat * 0.40),
-      chord(beat * 2.50, [Bb3, D4, F4], beat * 1.40, "stab"),
-      chord(beat * 3.20, [Bb2, D3, F3], beat * 0.70, "stab"),
-    ];
-
-    // Bar 4 - Mid-climax: A7 stab + ascending arpeggio + descending
-    // finale. Ends on a Dm stab (smaller than the full crash) so the
-    // climbing chord progression in bar 5 picks up the energy without
-    // a hard reset.
-    const BAR_CLIMAX = [
-      chord(0, [A3, Csh4, E4, G4], beat * 0.30, "stab"),
-      ...run(beat * 0.30, [A4, Csh5, E5, A5], beat * 0.30),
-      note(beat * 1.50, A5, beat * 0.40),
-      ...run(beat * 1.90, [A5, G5, Fsh5, F5, E5, D5], beat * 0.15),
-      chord(beat * 2.95, [D3, F3, A3, D4, F4, A4], beat * 1.05, "stab"),
-    ];
-
-    // Bar 5 - QUICK CHORD CLIMB (chord per beat ascending: Dm Em F Gm)
-    // with spiny melody walking up the root notes one octave above.
-    const BAR_CLIMB1 = [
-      chord(beat * 0.00, [D3, F3, A3],  beat * 0.85, "stab"),
-      note (beat * 0.00,  D5,           beat * 0.85),
-      chord(beat * 1.00, [E3, G3, B3],  beat * 0.85, "stab"),
-      note (beat * 1.00,  E5,           beat * 0.85),
-      chord(beat * 2.00, [F3, A3, C4],  beat * 0.85, "stab"),
-      note (beat * 2.00,  F5,           beat * 0.85),
-      chord(beat * 3.00, [G3, Bb3, D4], beat * 0.85, "stab"),
-      note (beat * 3.00,  G5,           beat * 0.85),
-    ];
-
-    // Bar 6 - Climb continues HIGHER (Am Bb C Dm), melody pushes from
-    // A5 up to high D6 - the top of the arch.
-    const BAR_CLIMB2 = [
-      chord(beat * 0.00, [A3, C4, E4],  beat * 0.85, "stab"),
-      note (beat * 0.00,  A5,           beat * 0.85),
-      chord(beat * 1.00, [Bb3, D4, F4], beat * 0.85, "stab"),
-      note (beat * 1.00,  Bb5,          beat * 0.85),
-      chord(beat * 2.00, [C4, E4, G4],  beat * 0.85, "stab"),
-      note (beat * 2.00,  C6,           beat * 0.85),
-      chord(beat * 3.00, [D4, F4, A4],  beat * 0.85, "stab"),
-      note (beat * 3.00,  D6,           beat * 0.85),
-    ];
-
-    // Bar 7 - TENSION: sustained C#°7 diminished pad with a high trill
-    // (D6-C#6) that descends chromatically into the resolution bar.
-    const BAR_TENSION = [
-      chord(0, [Csh4, E4, G4, Bb4], bar * 0.95, "dim"),
-      // High trill - the Phantom organist on the edge
-      note(beat * 0.05, D6,   0.10),
-      note(beat * 0.15, Csh6, 0.10),
-      note(beat * 0.25, D6,   0.10),
-      note(beat * 0.35, Csh6, 0.10),
-      note(beat * 0.50, D6,   beat * 0.80),
-      // Chromatic descent through the tension
-      note(beat * 1.40, D6,   beat * 0.35),
-      note(beat * 1.75, Csh6, beat * 0.35),
-      note(beat * 2.10, C6,   beat * 0.35),
-      note(beat * 2.45, B5,   beat * 0.35),
-      note(beat * 2.80, Bb5,  beat * 0.35),
-      note(beat * 3.15, A5,   beat * 0.85),
-    ];
-
-    // Bar 8 - FULL RESOLUTION: massive multi-octave Dm crash + dramatic
-    // descending sweep + final low Dm rumble. Rings into the loop restart.
-    const BAR_RESOLVE = [
-      chord(0, [D2, F2, A2, D3, F3, A3, D4, F4, A4, D5], beat * 1.55, "big"),
-      // Descending sweep over the crash
-      ...run(beat * 0.50, [D5, C5, Bb4, A4, G4, F4, E4, D4], beat * 0.18),
-      chord(beat * 2.10, [D3, F3, A3, D4, F4, A4], beat * 0.85, "stab"),
-      chord(beat * 3.05, [D1, D2, F2, A2], beat * 1.20, "big"),
-    ];
-
-    const bars = [
-      BAR_TOC_DM, BAR_UP_GM, BAR_TOC_BB, BAR_CLIMAX,
-      BAR_CLIMB1, BAR_CLIMB2, BAR_TENSION, BAR_RESOLVE,
-    ];
-    const basses = [D1, G1, Bb1, A1, D1, A1, A1, D1];
 
     this._music = {
       sub, dry, wet, conv, organIn, moogIn,
-      bar, beat, bars, basses,
+      bar, beat, p, CHORDS, PROG, SECTIONS,
       barIndex: 0,
       nextBarAt: t0,
     };
@@ -338,7 +247,7 @@ export class AudioEngine {
       const now = this.ctx.currentTime;
       if (m.nextBarAt < now - 1) m.nextBarAt = now + 0.1;
       while (m.nextBarAt < now + 0.25) {
-        this._schedBar(m.barIndex % m.bars.length, m.nextBarAt);
+        this._schedBar(m.barIndex % m.PROG.length, m.nextBarAt);
         m.nextBarAt += m.bar;
         m.barIndex++;
       }
@@ -363,70 +272,93 @@ export class AudioEngine {
   _schedBar(idx, t) {
     if (!this._music) return;
     const m = this._music;
-    const events = m.bars[idx];
+    const chordName = m.PROG[idx];
+    const chord = m.CHORDS[chordName];
+    const section = m.SECTIONS[Math.floor(idx / 8)];
+    const bright = section.filterBrightness;
 
-    // Bass pattern per bar. Most bars get a single moog thump on b1;
-    // the two climb bars walk the bass underfoot beat-by-beat (quieter
-    // so it doesn't drown the chord stabs); the resolve bar gets a
-    // second whack on b3 for a full cadence.
-    if (idx === 4) {
-      // BAR_CLIMB1: D E F G walking
-      this._moogBass(t + m.beat * 0, 36.71, 0.55);
-      this._moogBass(t + m.beat * 1, 41.20, 0.55);
-      this._moogBass(t + m.beat * 2, 43.65, 0.55);
-      this._moogBass(t + m.beat * 3, 49.00, 0.55);
-    } else if (idx === 5) {
-      // BAR_CLIMB2: A Bb C D walking
-      this._moogBass(t + m.beat * 0, 55.00, 0.55);
-      this._moogBass(t + m.beat * 1, 58.27, 0.55);
-      this._moogBass(t + m.beat * 2, 65.41, 0.55);
-      this._moogBass(t + m.beat * 3, 73.42, 0.55);
-    } else {
-      this._moogBass(t, m.basses[idx]);
-      if (idx === 7) this._moogBass(t + m.beat * 2, m.basses[idx]);
-    }
-
-    // Moog patches per role. Each starts with a detuned saw pair, runs
-    // it through a resonant lowpass, and sweeps the filter cutoff with
-    // an envelope - the per-note "wow" is THE Moog signature.
-    //
-    // Spiny lead: snappy attack, fast filter sweep + high Q for that
-    // squelchy lead character, plus light pitch vibrato.
-    const meloOpts = {
-      attack: 0.010, peak: 0.32, release: 0.06,
-      fStart: 4200, fEnd: 1100, fSweep: 0.08, fQ: 9,
-      detune: 7, voices: 2,
-      vibrato: true,
+    // Per-bar Moog patches. All filter values scale with the section
+    // brightness so later sections get progressively more "open".
+    const arpOpts = {
+      attack: 0.005, peak: 0.18, release: 0.04,
+      fStart: 2400 * bright, fEnd: 1300 * bright, fSweep: 0.04, fQ: 5,
+      detune: 6, voices: 2,
     };
-    // Chord stab: medium sweep, moderate Q. Each stab has the "wah"
-    // attack but still leaves enough body for the chord to read.
-    const stabOpts = {
-      attack: 0.018, peak: 0.22, release: 0.30,
-      fStart: 2000, fEnd: 480, fSweep: 0.20, fQ: 5,
-      detune: 9, voices: 2,
-    };
-    // Sustained diminished pad: slow filter movement keeps the chord
-    // breathing/swelling across the bar.
-    const dimOpts = {
-      attack: 0.030, peak: 0.25, release: 0.45,
-      fStart: 1500, fEnd: 700, fSweep: 0.45, fQ: 6,
+    const padOpts = {
+      attack: 0.6, peak: 0.13, release: 0.4,
+      // Opens up across the bar (start dark, sweep bright) - that
+      // slow filter swell is core Moog pad character.
+      fStart: 600, fEnd: 1800 * bright, fSweep: m.bar * 0.7, fQ: 5,
       detune: 11, voices: 3,
     };
-    // Big crash: wide detuned stack with the filter cracked all the
-    // way open, long release for a fat analog ring-out.
-    const bigOpts = {
-      attack: 0.015, peak: 0.30, release: 0.60,
-      fStart: 2800, fEnd: 350, fSweep: 0.50, fQ: 5,
-      detune: 12, voices: 3,
+    const leadOpts = {
+      attack: 0.015, peak: 0.30, release: 0.10,
+      fStart: 3600 * bright, fEnd: 1000 * bright, fSweep: 0.10, fQ: 8,
+      detune: 6, voices: 2,
+      vibrato: true,
     };
 
-    for (const e of events) {
-      if (e.type === "note") {
-        this._organVoice(t + e.when, e.dur, e.f, meloOpts);
-      } else if (e.type === "chord") {
-        const opts = e.kind === "dim" ? dimOpts : e.kind === "big" ? bigOpts : stabOpts;
-        for (const f of e.freqs) {
-          this._organVoice(t + e.when, e.dur, f, opts);
+    // BASS - pedal on b1, or walking root-5th-root-5th in section C.
+    if (section.walking) {
+      this._moogBass(t,             chord.bass,       0.55);
+      this._moogBass(t + m.beat,    chord.bass * 1.5, 0.50);
+      this._moogBass(t + m.beat*2,  chord.bass,       0.55);
+      this._moogBass(t + m.beat*3,  chord.bass * 1.5, 0.50);
+    } else {
+      this._moogBass(t, chord.bass);
+    }
+
+    // PAD - sustained chord voicing across the bar.
+    for (const f of chord.notes) {
+      this._organVoice(t, m.bar * 0.97, f, padOpts);
+    }
+
+    // ARPEGGIO - 16th notes climbing through chord notes. Octave-arp
+    // sections include the next octave up for a wider climbing range.
+    const arpRoot = chord.arp;
+    const arpFreqs = section.octaveArp
+      ? [
+          m.p(arpRoot[0], 4), m.p(arpRoot[1], 4), m.p(arpRoot[2], 4),
+          m.p(arpRoot[0], 5), m.p(arpRoot[1], 5), m.p(arpRoot[2], 5),
+          m.p(arpRoot[0], 5), m.p(arpRoot[1], 4),
+        ]
+      : [
+          m.p(arpRoot[0], 4), m.p(arpRoot[1], 4), m.p(arpRoot[2], 4),
+          m.p(arpRoot[0], 5),
+        ];
+    const sixteenth = m.beat * 0.25;
+    for (let i = 0; i < 16; i++) {
+      this._organVoice(
+        t + i * sixteenth,
+        sixteenth * 0.85,
+        arpFreqs[i % arpFreqs.length],
+        arpOpts,
+      );
+    }
+
+    // LEAD - climbing 4-note phrase aligned to the chord. Plays one
+    // note per beat. Sparse: only every other bar in sections B/C/D,
+    // then every bar in section E (climax).
+    if (section.lead) {
+      const sectionIdx = Math.floor(idx / 8);
+      const barInSection = idx % 8;
+      const playThisBar = sectionIdx === 4 || barInSection % 2 === 1;
+      if (playThisBar) {
+        // Ascending chord-tone phrase: root, 3rd, 5th, octave-root.
+        const oct = section.octaveArp ? 5 : 4;
+        const leadPitches = [
+          m.p(arpRoot[0], oct),
+          m.p(arpRoot[1], oct),
+          m.p(arpRoot[2], oct),
+          m.p(arpRoot[0], oct + 1),
+        ];
+        for (let i = 0; i < 4; i++) {
+          this._organVoice(
+            t + i * m.beat,
+            m.beat * 0.85,
+            leadPitches[i],
+            leadOpts,
+          );
         }
       }
     }
