@@ -350,31 +350,36 @@ body.touch #touch-controls {
 }
 /* NES-style chunky pressable buttons: thick colored ring, hard drop shadow
    for a 3D rest, on press the button drops into the shadow. */
+/* Action button: domed dark dome by default, red-tinted when a mark is
+   placed (.is-fire). Skeuomorphic = top highlight, body shadow, ground
+   shadow. No flat ring border. */
 .act-mark-fire {
-  background: #f4f6fa;
-  color: #0a0a12;
-  border: 4px solid #c8ccd6;
+  background: radial-gradient(circle at 50% 30%, #2a2a36 0%, #0b0b14 78%);
+  color: #ffd24c;
+  border: none;
   box-shadow:
-    0 5px 0 rgba(0, 0, 0, 0.55),
-    inset 0 -4px 0 rgba(0, 0, 0, 0.10);
+    0 6px 0 rgba(0, 0, 0, 0.60),
+    inset 0 4px 3px rgba(255, 255, 255, 0.10),
+    inset 0 -5px 4px rgba(0, 0, 0, 0.55);
   display: flex; align-items: center; justify-content: center;
   padding: 0;
   overflow: hidden;
-  transition: transform 90ms ease, box-shadow 90ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
+  transition: transform 90ms ease, box-shadow 90ms ease, background 180ms ease;
 }
 .act-mark-fire.is-fire {
-  background: #0a0a12;
+  background: radial-gradient(circle at 50% 30%, #401822 0%, #0e0406 78%);
   color: #ff2818;
-  border-color: #5e0d0d;
   box-shadow:
-    0 5px 0 rgba(0, 0, 0, 0.55),
-    inset 0 -4px 0 rgba(255, 40, 24, 0.22);
+    0 6px 0 rgba(0, 0, 0, 0.60),
+    inset 0 4px 3px rgba(255, 80, 80, 0.12),
+    inset 0 -5px 4px rgba(80, 0, 0, 0.50);
 }
 .act-mark-fire.pressed {
   transform: translateY(3px);
   box-shadow:
-    0 2px 0 rgba(0, 0, 0, 0.55),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.10);
+    0 3px 0 rgba(0, 0, 0, 0.60),
+    inset 0 2px 2px rgba(255, 255, 255, 0.08),
+    inset 0 -3px 2px rgba(0, 0, 0, 0.55);
 }
 .act-mark-fire .mf-bomb {
   width: 100%; height: 100%;
