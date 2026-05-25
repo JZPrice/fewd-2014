@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=117";
-import { Player } from "./player.js?v=117";
-import { Stage } from "./stage.js?v=117";
-import { STAGES } from "./stages.js?v=117";
-import { GRID_W, GRID_D } from "./config.js?v=117";
+import { Grid } from "./grid.js?v=118";
+import { Player } from "./player.js?v=118";
+import { Stage } from "./stage.js?v=118";
+import { STAGES } from "./stages.js?v=118";
+import { GRID_W, GRID_D } from "./config.js?v=118";
 
 const STATE = {
   TITLE: "title",
@@ -443,13 +443,19 @@ export class Game {
       }
     }
 
-    // Engage the tight camera framing when the player is within 3 tiles
-    // of the active wave's front-most cube. Disengage otherwise; the
-    // renderer eases the params either way.
+    // Blend toward the tight camera framing based on proximity to the
+    // active wave's front-most cube. The full tight preset is the
+    // extreme close-up - only reached at point-blank range. From further
+    // away it eases in gradually so the camera never snaps.
     if (this.stage && this.state === STATE.PLAYING) {
       const frontZ = this.stage.frontActiveCubeZ();
       const dist = frontZ != null ? frontZ - this.player.gz : Infinity;
-      this.renderer.setTightBlend?.(dist > 0 && dist <= 3 ? 1 : 0);
+      // smoothstep: 1.0 tight at dist <= 1, 0.0 default at dist >= 9.
+      const NEAR = 1, FAR = 9;
+      let t = (FAR - dist) / (FAR - NEAR);
+      t = Math.max(0, Math.min(1, t));
+      const blend = t * t * (3 - 2 * t);
+      this.renderer.setTightBlend?.(dist > 0 ? blend : 0);
     } else {
       this.renderer.setTightBlend?.(0);
     }
