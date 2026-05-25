@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=135";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=136";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -584,15 +584,30 @@ export class Renderer {
         varying float vNoise;
         varying vec3 vPos;
         void main() {
-          vec3 dark = vec3(0.04, 0.16, 0.07);
-          vec3 mid  = vec3(0.18, 0.55, 0.20);
-          vec3 hot  = vec3(0.55, 1.00, 0.40);
-          float n = vNoise;
-          vec3 col = mix(dark, mid, smoothstep(0.20, 0.55, n));
-          col = mix(col, hot, smoothstep(0.65, 0.92, n));
-          // Slow pulsing hot spots
-          float pulse = 0.5 + 0.5 * sin(uTime * 0.6 + vPos.x * 0.5 + vPos.y * 0.3);
-          col += hot * smoothstep(0.75, 0.95, n) * pulse * 0.4;
+          // Mostly black void. Bubbles emerge only at very high noise
+          // peaks; they bloom in and recede on their own pulse phases.
+          vec3 voidCol = vec3(0.01, 0.015, 0.02);
+          vec3 hot     = vec3(0.55, 1.00, 0.40);
+          vec3 hotCore = vec3(0.85, 1.00, 0.70);
+
+          // Sharp bubble threshold so most of the surface stays black.
+          float bubble = smoothstep(0.66, 0.80, vNoise);
+          // Each bubble pulses on its own phase (driven by world pos).
+          float pulse = 0.45 + 0.55 * sin(uTime * 0.9
+                          + vPos.x * 0.55 + vPos.y * 0.45);
+          float intensity = bubble * pulse;
+
+          vec3 col = voidCol + hot * intensity;
+          // Bright hot core only at the very top of the noise spikes
+          col += hotCore * smoothstep(0.82, 0.94, vNoise) * pulse;
+
+          // Distance fade: goo fades to black as it gets far from the
+          // platform, so it feels like the bubbles are surfacing out of
+          // a dark distance rather than a glowing green floor everywhere.
+          float dist = length(vPos.xy);
+          float fade = 1.0 - smoothstep(14.0, 38.0, dist);
+          col = mix(voidCol, col, fade);
+
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -1194,7 +1209,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=135", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=136", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
