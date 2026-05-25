@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=126");
+      const a = new Audio("assets/audio/silence.wav?v=127");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -136,26 +136,31 @@ export class AudioEngine {
 
   // ----- Music -------------------------------------------------------------
   //
-  // Sword-and-sorcery pipe organ: additive sawtooth drawbars (1f, 2f, 3f,
-  // 4f) feed a synthetic cathedral convolution reverb for that ringing
-  // dungeon-cathedral wash. A separate Moog-style filter-swept saw bass
-  // pulses on each downbeat. A sparse high melody line surfaces on the
-  // cadence bar (A7 -> Dm) for Phantom-y drama.
+  // Phantom / Toccata-and-Fugue D-minor pipe organ, alternating bar-by-bar
+  // between a DEEP register (sub-bass + low chord swell) and a SPINY high
+  // register (Bach-style mordent + descending Dm-scale phrase). Every bar
+  // is anchored by a Moog-style filter-swept bass pedal on the downbeat.
+  // Convolution reverb gives the whole thing a cathedral wash.
   //
-  // 4-bar progression in D minor at 64 BPM, loops indefinitely. Notes are
-  // scheduled bar-by-bar via a 100ms look-ahead; oscillators self-stop on
-  // their scheduled end time, so stopMusic() only needs to cancel the
-  // scheduler and fade the submaster.
+  // 4-bar loop in D minor at 56 BPM:
+  //   Bar 1 (Dm, DEEP)  - low chord swell + sub-bass D1
+  //   Bar 2 (Gm, SPINY) - high chord swell + D5 Toccata mordent descent
+  //   Bar 3 (Bb, DEEP)  - low chord swell + sub-bass Bb1
+  //   Bar 4 (A7, SPINY) - high chord swell + A5 Toccata mordent climax
+  //                       (lands on D at the loop restart for cadence)
+  //
+  // Notes are scheduled bar-by-bar via a 100ms look-ahead; oscillators
+  // self-stop on their scheduled end time, so stopMusic() only needs to
+  // cancel the scheduler and fade the submaster.
   startMusic() {
     if (!this.ctx || this._music) return;
     const ctx = this.ctx;
     const t0 = ctx.currentTime + 0.15;
 
-    // Cathedral reverb: synthetic exponentially-decaying noise impulse.
     const conv = ctx.createConvolver();
-    conv.buffer = this._makeCathedralIR(3.8, 2.5);
+    conv.buffer = this._makeCathedralIR(4.0, 2.4);
 
-    const wet = ctx.createGain(); wet.gain.value = 0.55;
+    const wet = ctx.createGain(); wet.gain.value = 0.65;
     const dry = ctx.createGain(); dry.gain.value = 1.0;
     conv.connect(wet);
 
@@ -166,46 +171,67 @@ export class AudioEngine {
     wet.connect(sub);
     sub.connect(this.musicGain);
 
-    // Per-layer entry points: organ chords + melody share a bus; bass
-    // gets its own with less reverb so it stays defined in the mix.
     const organIn = ctx.createGain(); organIn.gain.value = 0.55;
     organIn.connect(dry);
     organIn.connect(conv);
 
-    const moogIn = ctx.createGain(); moogIn.gain.value = 0.50;
+    const moogIn = ctx.createGain(); moogIn.gain.value = 0.55;
     moogIn.connect(dry);
     moogIn.connect(conv);
 
-    // Tempo + bars. 64 BPM = stately, lurching.
-    const beat = 60 / 64;
+    // Tempo - slow, lurching, dramatic.
+    const beat = 60 / 56;
     const bar  = beat * 4;
 
-    // 4-bar D-minor progression. Notes in mid-register so the bass below
-    // has room to thump. Bass plays the root one octave lower.
-    const D3 = 146.83, F3 = 174.61, A3 = 220.00;
+    // Sub-bass + bass + low-register pitches.
+    const D1 = 36.71, A1 = 55.00, Bb1 = 58.27;
+    const D2 = 73.42, F2 = 87.31, A2 = 110.00;
+    // High-register pitches for spiny bars.
     const G3 = 196.00, Bb3 = 233.08, D4 = 293.66;
-    const Csh4 = 277.18, E4 = 329.63, G4 = 392.00;
+    const A3 = 220.00, Csh4 = 277.18, E4 = 329.63, G4 = 392.00;
+    // Toccata mordent + descent pitches.
+    const Bb4 = 466.16, G4m = 392.00, C5 = 523.25, D5 = 587.33;
+    const E5 = 659.25, F5 = 698.46, G5 = 783.99, A5 = 880.00;
+    const A4 = 440.00;
 
-    const progression = [
-      { name: "Dm", chord: [D3, F3, A3],           bass: 73.42 },   // D2
-      { name: "Gm", chord: [G3, Bb3, D4],          bass: 98.00 },   // G2
-      { name: "Bb", chord: [Bb3, D4, F3 * 2],      bass: 116.54 },  // Bb2
-      { name: "A7", chord: [A3, Csh4, E4, G4],     bass: 110.00 },  // A2
+    // Mordent: a 3-note ornament that opens both Toccata phrases. Quick,
+    // 60ms per note, then the held note sustains for ~half a beat.
+    const mord = (top, lower, holdDur) => ([
+      { f: top,   when: 0.000, dur: 0.07 },
+      { f: lower, when: 0.070, dur: 0.07 },
+      { f: top,   when: 0.140, dur: holdDur },
+    ]);
+
+    // Bar 2 (over Gm) - high D5 Toccata mordent + descent to Gm root.
+    const TOC_GM = [
+      ...mord(D5, C5, beat * 0.7),
+      { f: D5,  when: beat * 1.00, dur: beat * 0.45 },
+      { f: C5,  when: beat * 1.50, dur: beat * 0.45 },
+      { f: Bb4, when: beat * 2.00, dur: beat * 0.45 },
+      { f: A4,  when: beat * 2.50, dur: beat * 0.45 },
+      { f: G4m, when: beat * 3.00, dur: beat * 1.00 },
+    ];
+    // Bar 4 (over A7) - climactic A5 mordent + descent that lands on D
+    // when the loop restarts.
+    const TOC_A7 = [
+      ...mord(A5, G5, beat * 0.7),
+      { f: A5, when: beat * 1.00, dur: beat * 0.45 },
+      { f: G5, when: beat * 1.50, dur: beat * 0.45 },
+      { f: F5, when: beat * 2.00, dur: beat * 0.45 },
+      { f: E5, when: beat * 2.50, dur: beat * 0.45 },
+      { f: D5, when: beat * 3.00, dur: beat * 1.00 },
     ];
 
-    // Descending Dm-scale melody fragment, played over the A7 cadence
-    // bar so it lands on Dm when the loop restarts.
-    const F4 = 349.23, A4 = 440.00;
-    const melodyCadence = [
-      { f: A4, when: 0,        dur: beat * 1.0 },
-      { f: G4, when: beat,     dur: beat * 1.0 },
-      { f: F4, when: beat * 2, dur: beat * 1.0 },
-      { f: E4, when: beat * 3, dur: beat * 1.0 },
+    const progression = [
+      { name: "Dm", spiny: false, chord: [D2, F2, A2],      bass: D1 },
+      { name: "Gm", spiny: true,  chord: [G3, Bb3, D4],     bass: 98.00,  melody: TOC_GM },
+      { name: "Bb", spiny: false, chord: [Bb1, D2, F2],     bass: Bb1 },
+      { name: "A7", spiny: true,  chord: [A3, Csh4, E4, G4], bass: A1,    melody: TOC_A7 },
     ];
 
     this._music = {
       sub, dry, wet, conv, organIn, moogIn,
-      bar, beat, progression, melodyCadence,
+      bar, beat, progression,
       barIndex: 0,
       nextBarAt: t0,
     };
@@ -214,8 +240,6 @@ export class AudioEngine {
       if (!this._music) return;
       const m = this._music;
       const now = this.ctx.currentTime;
-      // If the page was backgrounded and we're hopelessly behind, snap
-      // forward so we don't dump a pile of overlapping bars at once.
       if (m.nextBarAt < now - 1) m.nextBarAt = now + 0.1;
       while (m.nextBarAt < now + 0.25) {
         this._schedBar(m.barIndex % m.progression.length, m.nextBarAt);
@@ -243,44 +267,73 @@ export class AudioEngine {
   _schedBar(idx, t) {
     if (!this._music) return;
     const m = this._music;
-    const chord = m.progression[idx];
+    const c = m.progression[idx];
 
-    // Sustained organ chord across the bar
-    for (const f of chord.chord) {
-      this._organNote(t, m.bar * 0.96, f);
+    // Chord swell across the full bar. DEEP bars get warm low harmonics
+    // and a slow swell; SPINY bars get brighter upper harmonics and a
+    // faster lift so the high register feels piercing.
+    const chordOpts = c.spiny
+      ? { attack: 0.40, peak: 0.22, release: 0.30,
+          harms: [[1, 0.22], [2, 0.20], [3, 0.16], [4, 0.12], [6, 0.07], [8, 0.04]] }
+      : { attack: 0.70, peak: 0.42, release: 0.35,
+          harms: [[1, 0.42], [2, 0.26], [3, 0.10], [4, 0.05]] };
+    for (const f of c.chord) {
+      this._organVoice(t, m.bar * 0.96, f, chordOpts);
     }
 
-    // Moog bass pulse on beat 1
-    this._moogBass(t, chord.bass);
+    // Bass pedal on the downbeat. A7 (cadence) gets a second whack on
+    // beat 3 for extra weight before the resolution.
+    this._moogBass(t, c.bass);
+    if (c.name === "A7") this._moogBass(t + m.beat * 2, c.bass);
 
-    // Melody only on the cadence (A7) bar so it isn't constant
-    if (chord.name === "A7") {
-      for (const n of m.melodyCadence) {
-        this._melodyNote(t + n.when, n.dur, n.f);
+    // Toccata melody, spiny tone, sharp attack.
+    if (c.melody) {
+      const noteOpts = {
+        attack: 0.012, peak: 0.32, release: 0.06,
+        harms: [[1, 0.22], [2, 0.20], [3, 0.16], [4, 0.12], [6, 0.08], [8, 0.05]],
+        vibrato: true,
+      };
+      for (const n of c.melody) {
+        this._organVoice(t + n.when, n.dur, n.f, noteOpts);
       }
     }
   }
 
-  _organNote(t, dur, freq) {
+  // Parameterized organ voice. Used for chord swells (deep + spiny) AND
+  // for the melody notes - the envelope shape, peak gain, and drawbar
+  // mix are the only things that change.
+  _organVoice(t, dur, freq, opts = {}) {
     if (!this._music) return;
     const ctx = this.ctx;
-    // Soft attack ("chiff"), full sustain, slow release: pipe-organ envelope.
+    const attack  = opts.attack  ?? 0.18;
+    const peak    = opts.peak    ?? 0.30;
+    const release = opts.release ?? 0.30;
+    const harms   = opts.harms   ?? [[1, 0.30], [2, 0.18], [3, 0.10], [4, 0.06]];
+
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(0.30, t + 0.18);
-    env.gain.setValueAtTime(0.30, t + Math.max(0.3, dur - 0.30));
+    env.gain.linearRampToValueAtTime(peak, t + attack);
+    env.gain.setValueAtTime(peak, t + Math.max(attack + 0.02, dur - release));
     env.gain.linearRampToValueAtTime(0, t + dur);
     env.connect(this._music.organIn);
 
-    // Drawbar additive synthesis: fundamental + 2f, 3f, 4f at decreasing
-    // amplitudes. Slight per-osc detune for shimmer (organ ranks aren't
-    // perfectly tuned).
-    const harms = [[1, 0.30], [2, 0.18], [3, 0.10], [4, 0.06]];
+    let vibLfo = null, vibG = null;
+    if (opts.vibrato) {
+      vibLfo = ctx.createOscillator();
+      vibLfo.frequency.value = 5;
+      vibG = ctx.createGain();
+      vibG.gain.value = 7;
+      vibLfo.connect(vibG);
+      vibLfo.start(t);
+      vibLfo.stop(t + dur + 0.1);
+    }
+
     for (const [mult, amp] of harms) {
       const o = ctx.createOscillator();
       o.type = "sawtooth";
       o.frequency.value = freq * mult;
       o.detune.value = (Math.random() - 0.5) * 8;
+      if (vibG) vibG.connect(o.detune);
       const g = ctx.createGain();
       g.gain.value = amp;
       o.connect(g).connect(env);
@@ -292,7 +345,7 @@ export class AudioEngine {
   _moogBass(t, freq) {
     if (!this._music) return;
     const ctx = this.ctx;
-    const dur = 0.65;
+    const dur = 0.85;
     const o1 = ctx.createOscillator();
     o1.type = "sawtooth";
     o1.frequency.value = freq;
@@ -300,49 +353,21 @@ export class AudioEngine {
     o2.type = "sawtooth";
     o2.frequency.value = freq;
     o2.detune.value = 9;
-    // The signature Moog: resonant lowpass swept by a fast decay envelope.
+    // Signature Moog: resonant lowpass swept by a fast decay envelope.
     const filt = ctx.createBiquadFilter();
     filt.type = "lowpass";
-    filt.Q.value = 11;
-    filt.frequency.setValueAtTime(1900, t);
-    filt.frequency.exponentialRampToValueAtTime(95, t + 0.55);
+    filt.Q.value = 12;
+    filt.frequency.setValueAtTime(2200, t);
+    filt.frequency.exponentialRampToValueAtTime(85, t + 0.6);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.40, t + 0.005);
+    g.gain.linearRampToValueAtTime(0.45, t + 0.005);
     g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
     o1.connect(filt);
     o2.connect(filt);
     filt.connect(g).connect(this._music.moogIn);
     o1.start(t); o2.start(t);
     o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
-  }
-
-  _melodyNote(t, dur, freq) {
-    if (!this._music) return;
-    const ctx = this.ctx;
-    const o = ctx.createOscillator();
-    o.type = "sawtooth";
-    o.frequency.value = freq;
-    // Light vibrato for drama
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 5;
-    const lfoG = ctx.createGain();
-    lfoG.gain.value = 8;
-    lfo.connect(lfoG).connect(o.detune);
-    const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.frequency.value = 2400;
-    filt.Q.value = 1.4;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.22, t + 0.04);
-    g.gain.setValueAtTime(0.22, t + Math.max(0.05, dur - 0.15));
-    g.gain.linearRampToValueAtTime(0, t + dur);
-    o.connect(filt).connect(g).connect(this._music.organIn);
-    o.start(t);
-    lfo.start(t);
-    o.stop(t + dur + 0.05);
-    lfo.stop(t + dur + 0.05);
   }
 
   stopMusic() {
