@@ -1,13 +1,13 @@
-import { Renderer } from "./renderer.js?v=115";
-import { Input } from "./input.js?v=115";
-import { AudioEngine } from "./audio.js?v=115";
-import { HUD } from "./hud.js?v=115";
-import { Game } from "./game.js?v=115";
-import { Debugger } from "./debug.js?v=115";
-import { Haptics } from "./haptics.js?v=115";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=115";
-import { CharacterPreview } from "./charPreview.js?v=115";
-import { BombPreview } from "./bombPreview.js?v=115";
+import { Renderer } from "./renderer.js?v=116";
+import { Input } from "./input.js?v=116";
+import { AudioEngine } from "./audio.js?v=116";
+import { HUD } from "./hud.js?v=116";
+import { Game } from "./game.js?v=116";
+import { Debugger } from "./debug.js?v=116";
+import { Haptics } from "./haptics.js?v=116";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=116";
+import { CharacterPreview } from "./charPreview.js?v=116";
+import { BombPreview } from "./bombPreview.js?v=116";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -126,7 +126,7 @@ if (markFireBtn) {
   markFireBtn.addEventListener("contextmenu", (e) => e.preventDefault());
   // Spin a tiny 3D bomb inside the button as its icon.
   const bombCanvas = markFireBtn.querySelector(".mf-bomb");
-  if (bombCanvas) new BombPreview(bombCanvas);
+  if (bombCanvas) markFireBtn._bombPreview = new BombPreview(bombCanvas);
 }
 
 // Fast-forward button at top-center (hold to make blocks tick 2x faster).
@@ -283,6 +283,7 @@ function loop(now) {
       markFireBtn.dataset.mode = mode;
       markFireBtn.setAttribute("aria-label", mode);
       markFireBtn.classList.toggle("is-fire", fire);
+      markFireBtn._bombPreview?.setMode(mode);
     }
   }
   if (bombBtn) {

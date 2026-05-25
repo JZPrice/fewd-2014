@@ -31,13 +31,24 @@ export class BombPreview {
     this.pivot = new THREE.Group();
     this.scene.add(this.pivot);
 
+    // Bomb (default 'mark' icon) and a 3D X (swapped in for 'fire' mode)
+    // share the same pivot so they get the same gentle sway + bob.
+    this._bombGroup = new THREE.Group();
+    this.pivot.add(this._bombGroup);
+
+    this._xGroup = this._buildX();
+    this._xGroup.visible = false;
+    this.pivot.add(this._xGroup);
+
+    this._mode = "mark";
+
     this._clock = new THREE.Clock();
     this._elapsed = 0;
     this._raf = null;
     this._running = false;
     this._loop = this._loop.bind(this);
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=115", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=116", (gltf) => {
       const model = gltf.scene;
       model.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       // The loaded scene already bakes the model's 100x armature scale,
@@ -45,12 +56,42 @@ export class BombPreview {
       // pulled-back camera frames it cleanly inside the round button.
       model.scale.setScalar(1.0);
       model.position.y = -0.1;
-      this.pivot.add(model);
+      this._bombGroup.add(model);
     }, undefined, (err) => {
       console.warn("bomb preview failed to load:", err);
     });
 
     this.start();
+  }
+
+  // Swap which icon mesh is visible. Pivot animation (sway + bob)
+  // keeps running on whichever is shown.
+  setMode(mode) {
+    if (mode !== "mark" && mode !== "fire") return;
+    if (this._mode === mode) return;
+    this._mode = mode;
+    this._bombGroup.visible = mode === "mark";
+    this._xGroup.visible = mode === "fire";
+  }
+
+  _buildX() {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({
+      color: 0xff2818,
+      emissive: 0x4a0000,
+      emissiveIntensity: 0.45,
+    });
+    // Chunky bars crossed at 45 - reads as a chiseled 3D X rather than
+    // two flat strokes.
+    const bar = new THREE.BoxGeometry(0.28, 1.55, 0.28);
+    const a = new THREE.Mesh(bar, mat);
+    a.rotation.z = Math.PI / 4;
+    const b = new THREE.Mesh(bar, mat);
+    b.rotation.z = -Math.PI / 4;
+    g.add(a);
+    g.add(b);
+    g.position.y = -0.1;
+    return g;
   }
 
   start() {
