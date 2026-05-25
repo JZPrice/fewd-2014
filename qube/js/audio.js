@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=130");
+      const a = new Audio("assets/audio/silence.wav?v=131");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -163,10 +163,14 @@ export class AudioEngine {
     const ctx = this.ctx;
     const t0 = ctx.currentTime + 0.15;
 
+    // Drier room than the previous cathedral wash - Moog wants to be
+    // up-front and squelchy, not echoing through a chapel. Short IR
+    // (~1.2s) with a fast falloff plus a small wet send keeps a hint
+    // of space without smearing the filter character.
     const conv = ctx.createConvolver();
-    conv.buffer = this._makeCathedralIR(4.0, 2.4);
+    conv.buffer = this._makeCathedralIR(1.2, 3.5);
 
-    const wet = ctx.createGain(); wet.gain.value = 0.65;
+    const wet = ctx.createGain(); wet.gain.value = 0.22;
     const dry = ctx.createGain(); dry.gain.value = 1.0;
     conv.connect(wet);
 
@@ -382,26 +386,38 @@ export class AudioEngine {
       if (idx === 7) this._moogBass(t + m.beat * 2, m.basses[idx]);
     }
 
-    // Spiny tone for the melodic flourishes (mordent, runs).
+    // Moog patches per role. Each starts with a detuned saw pair, runs
+    // it through a resonant lowpass, and sweeps the filter cutoff with
+    // an envelope - the per-note "wow" is THE Moog signature.
+    //
+    // Spiny lead: snappy attack, fast filter sweep + high Q for that
+    // squelchy lead character, plus light pitch vibrato.
     const meloOpts = {
-      attack: 0.012, peak: 0.32, release: 0.06,
-      harms: [[1, 0.22], [2, 0.20], [3, 0.16], [4, 0.12], [6, 0.08], [8, 0.05]],
+      attack: 0.010, peak: 0.32, release: 0.06,
+      fStart: 4200, fEnd: 1100, fSweep: 0.08, fQ: 9,
+      detune: 7, voices: 2,
       vibrato: true,
     };
-    // Stab chord - sharp attack, medium hold.
+    // Chord stab: medium sweep, moderate Q. Each stab has the "wah"
+    // attack but still leaves enough body for the chord to read.
     const stabOpts = {
-      attack: 0.015, peak: 0.22, release: 0.30,
-      harms: [[1, 0.28], [2, 0.20], [3, 0.12], [4, 0.07], [6, 0.04]],
+      attack: 0.018, peak: 0.22, release: 0.30,
+      fStart: 2000, fEnd: 480, fSweep: 0.20, fQ: 5,
+      detune: 9, voices: 2,
     };
-    // Diminished chord - sustained, slightly brighter for tension.
+    // Sustained diminished pad: slow filter movement keeps the chord
+    // breathing/swelling across the bar.
     const dimOpts = {
-      attack: 0.020, peak: 0.26, release: 0.45,
-      harms: [[1, 0.28], [2, 0.22], [3, 0.16], [4, 0.10], [6, 0.06]],
+      attack: 0.030, peak: 0.25, release: 0.45,
+      fStart: 1500, fEnd: 700, fSweep: 0.45, fQ: 6,
+      detune: 11, voices: 3,
     };
-    // Big climax chord - warm, full, long ring.
+    // Big crash: wide detuned stack with the filter cracked all the
+    // way open, long release for a fat analog ring-out.
     const bigOpts = {
-      attack: 0.010, peak: 0.32, release: 0.60,
-      harms: [[1, 0.36], [2, 0.24], [3, 0.12], [4, 0.06]],
+      attack: 0.015, peak: 0.30, release: 0.60,
+      fStart: 2800, fEnd: 350, fSweep: 0.50, fQ: 5,
+      detune: 12, voices: 3,
     };
 
     for (const e of events) {
@@ -416,17 +432,26 @@ export class AudioEngine {
     }
   }
 
-  // Parameterized organ voice. Used for chord swells (deep + spiny) AND
-  // for the melody notes - the envelope shape, peak gain, and drawbar
-  // mix are the only things that change.
+  // Moog-style subtractive voice. Detuned saw stack feeds a resonant
+  // lowpass filter that's swept by an envelope on each trigger - that
+  // per-note "wow" is the classic Moog signature. Used for every
+  // musical element (lead, chord stab, sustained pad, climax) by
+  // varying envelope, filter sweep, and resonance.
   _organVoice(t, dur, freq, opts = {}) {
     if (!this._music) return;
     const ctx = this.ctx;
-    const attack  = opts.attack  ?? 0.18;
+    const attack  = opts.attack  ?? 0.015;
     const peak    = opts.peak    ?? 0.30;
-    const release = opts.release ?? 0.30;
-    const harms   = opts.harms   ?? [[1, 0.30], [2, 0.18], [3, 0.10], [4, 0.06]];
+    const release = opts.release ?? 0.08;
+    const fStart  = opts.fStart  ?? 2500;
+    const fEnd    = opts.fEnd    ?? 700;
+    const fSweep  = opts.fSweep  ?? 0.12;
+    const fQ      = opts.fQ      ?? 7;
+    const detune  = opts.detune  ?? 8;
+    const voices  = opts.voices  ?? 2;
+    const type    = opts.type    ?? "sawtooth";
 
+    // Amplitude envelope: attack -> hold @ peak -> release
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(peak, t + attack);
@@ -434,26 +459,35 @@ export class AudioEngine {
     env.gain.linearRampToValueAtTime(0, t + dur);
     env.connect(this._music.organIn);
 
-    let vibLfo = null, vibG = null;
+    // Resonant lowpass with sweep envelope - THE Moog sound
+    const filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.Q.value = fQ;
+    filt.frequency.setValueAtTime(fStart, t);
+    const sweepEnd = t + Math.min(fSweep, Math.max(0.02, dur * 0.9));
+    filt.frequency.exponentialRampToValueAtTime(Math.max(40, fEnd), sweepEnd);
+    filt.connect(env);
+
+    // Optional pitch vibrato (mod-wheel style) for lead notes
+    let vibG = null;
     if (opts.vibrato) {
-      vibLfo = ctx.createOscillator();
+      const vibLfo = ctx.createOscillator();
       vibLfo.frequency.value = 5;
       vibG = ctx.createGain();
-      vibG.gain.value = 7;
+      vibG.gain.value = 6;
       vibLfo.connect(vibG);
       vibLfo.start(t);
       vibLfo.stop(t + dur + 0.1);
     }
 
-    for (const [mult, amp] of harms) {
+    // Detuned oscillator stack - thicker = wider detune + more voices
+    for (let i = 0; i < voices; i++) {
       const o = ctx.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.value = freq * mult;
-      o.detune.value = (Math.random() - 0.5) * 8;
+      o.type = type;
+      o.frequency.value = freq;
+      o.detune.value = (i - (voices - 1) / 2) * detune * 2;
       if (vibG) vibG.connect(o.detune);
-      const g = ctx.createGain();
-      g.gain.value = amp;
-      o.connect(g).connect(env);
+      o.connect(filt);
       o.start(t);
       o.stop(t + dur + 0.1);
     }
