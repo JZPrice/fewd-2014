@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=137";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=138";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -574,7 +574,7 @@ export class Renderer {
           float n = vnoise(pos.xy * 0.45 + vec2(uTime * 0.15, uTime * 0.10));
           n += 0.5 * vnoise(pos.xy * 0.95 + vec2(-uTime * 0.20, uTime * 0.13));
           n /= 1.5;
-          pos.z += (n - 0.5) * 1.6;
+          pos.z += (n - 0.5) * 0.45;
           vPos = pos;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
@@ -626,17 +626,19 @@ export class Renderer {
           vec3 hot     = vec3(0.55, 1.00, 0.40);
           vec3 hotCore = vec3(0.85, 1.00, 0.70);
 
-          float bubble = smoothstep(0.48, 0.64, n);
-          float pulse = 0.45 + 0.55 * sin(uTime * 0.9
+          // Rare, dim bubbles - we just want hints of green, not a glow.
+          float bubble = smoothstep(0.66, 0.80, n);
+          float pulse = 0.20 + 0.55 * sin(uTime * 0.9
                           + vPos.x * 0.55 + vPos.y * 0.45);
-          float intensity = bubble * pulse;
+          pulse = max(0.0, pulse);
+          float intensity = bubble * pulse * 0.55;
 
           vec3 col = voidCol + hot * intensity;
-          col += hotCore * smoothstep(0.68, 0.83, n) * pulse;
+          col += hotCore * smoothstep(0.86, 0.95, n) * pulse * 0.45;
 
           // Distance fade so the bubbles surface out of the dark.
           float dist = length(vPos.xy);
-          float fade = 1.0 - smoothstep(14.0, 38.0, dist);
+          float fade = 1.0 - smoothstep(10.0, 30.0, dist);
           col = mix(voidCol, col, fade);
 
           gl_FragColor = vec4(col, 1.0);
@@ -1240,7 +1242,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=137", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=138", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
