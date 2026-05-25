@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=134";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=135";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -213,6 +213,7 @@ export class Renderer {
     patchScratches(this._forbiddenMat, { darken: 0.0, lift: [0.10, 0.11, 0.14] });
     this._installEnvironment();
     this._buildAbyssBackground();
+    this._buildPlayerTrail();
 
     // Critically-damped spring state for the follow camera. Position is
     // tracked separately from velocity so the spring is stable for any dt.
@@ -468,33 +469,24 @@ export class Renderer {
   // A wide animated lava plane far below the platform. Visible past the
   // platform edges and through any holes punched by the front-row drop, so
   // dropping a row literally drops you toward the molten floor.
-  // Bottomless abyss + rising motes. Replaces the old lava plane: a deep
-  // dark floor far below and a swarm of pale particles drifting upward
-  // through the void, peaking in brightness around mid-height and fading
-  // off as they near the platform's level.
+  // Bottomless abyss + rising motes. A glowing green-goo lava plane far
+  // below the platform, with motes drifting upward through the void
+  // and fading off as they near the platform's level.
   _buildAbyssBackground() {
-    // Deep floor — flat dark fill, far enough below that it never edges
-    // the camera. Keeps the silhouette clean.
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(300, 300, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x04050b }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -14;
-    this.scene.add(floor);
+    this._buildGooLava();
 
     // Rising motes.
-    const COUNT = 220;
+    const COUNT = 360;
     const positions = new Float32Array(COUNT * 3);
     const speeds = new Float32Array(COUNT);
     const seeds = new Float32Array(COUNT);
-    const Y_BOTTOM = -10;
-    const Y_TOP = 4;
+    const Y_BOTTOM = -8;
+    const Y_TOP = 5;
     for (let i = 0; i < COUNT; i++) {
       positions[i * 3]     = (Math.random() - 0.5) * 60;
       positions[i * 3 + 1] = Y_BOTTOM + Math.random() * (Y_TOP - Y_BOTTOM);
       positions[i * 3 + 2] = (Math.random() - 0.5) * 60;
-      speeds[i] = 0.25 + Math.random() * 0.6;
+      speeds[i] = 0.25 + Math.random() * 0.7;
       seeds[i] = Math.random();
     }
     this._abyssParticleData = {
@@ -536,11 +528,13 @@ export class Renderer {
           float soft = 1.0 - smoothstep(0.05, 0.5, d);
           // Peak alpha mid-height, faint at extremes - feels like motes
           // catching light only briefly as they pass through.
-          float h = (vY + 10.0) / 14.0;
+          float h = (vY + 8.0) / 13.0;
           float curve = smoothstep(0.0, 0.25, h) * (1.0 - smoothstep(0.7, 1.0, h));
-          // Cool blue-white tint with a touch of warm variance per mote.
+          // Cool blue-white tint with a touch of warm variance per mote,
+          // shifting green near the goo at the bottom.
           vec3 col = mix(vec3(0.55, 0.72, 0.95), vec3(0.85, 0.90, 1.0), vSeed);
-          gl_FragColor = vec4(col, soft * curve * 0.75);
+          col = mix(vec3(0.45, 0.95, 0.45), col, smoothstep(0.0, 0.4, h));
+          gl_FragColor = vec4(col, soft * curve * 0.80);
         }
       `,
       transparent: true,
@@ -549,6 +543,340 @@ export class Renderer {
     });
     this._abyssParticles = new THREE.Points(geo, mat);
     this.scene.add(this._abyssParticles);
+
+    this._buildGhosts();
+    this._buildFireballs();
+  }
+
+  // Green-goo lava plane far below the platform. A noise-displaced surface
+  // tinted between dark green and bright glow-green; the brightest spots
+  // pulse over time so the goo feels alive. Replaces the previous flat
+  // dark floor.
+  _buildGooLava() {
+    const geo = new THREE.PlaneGeometry(110, 110, 80, 80);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        uniform float uTime;
+        varying float vNoise;
+        varying vec3 vPos;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i), b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        void main() {
+          vec3 pos = position;
+          float n = noise(pos.xy * 0.45 + vec2(uTime * 0.15, uTime * 0.10));
+          n += 0.5 * noise(pos.xy * 0.95 + vec2(-uTime * 0.20, uTime * 0.13));
+          n /= 1.5;
+          pos.z += (n - 0.5) * 1.6;
+          vNoise = n;
+          vPos = pos;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying float vNoise;
+        varying vec3 vPos;
+        void main() {
+          vec3 dark = vec3(0.04, 0.16, 0.07);
+          vec3 mid  = vec3(0.18, 0.55, 0.20);
+          vec3 hot  = vec3(0.55, 1.00, 0.40);
+          float n = vNoise;
+          vec3 col = mix(dark, mid, smoothstep(0.20, 0.55, n));
+          col = mix(col, hot, smoothstep(0.65, 0.92, n));
+          // Slow pulsing hot spots
+          float pulse = 0.5 + 0.5 * sin(uTime * 0.6 + vPos.x * 0.5 + vPos.y * 0.3);
+          col += hot * smoothstep(0.75, 0.95, n) * pulse * 0.4;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = -9;
+    this._gooLava = mesh;
+    this._gooLavaMat = mat;
+    this.scene.add(mesh);
+  }
+
+  // Cartoon ghost sprites drifting in slow elliptical orbits around the
+  // platform. White round body with two eye dots. Billboards via Points,
+  // additive blending for an ethereal glow.
+  _buildGhosts() {
+    const COUNT = 14;
+    const positions = new Float32Array(COUNT * 3);
+    const orbits = [];
+    for (let i = 0; i < COUNT; i++) {
+      const radius = 10 + Math.random() * 16;
+      const angle = Math.random() * Math.PI * 2;
+      const yBase = -3 - Math.random() * 4;
+      orbits.push({
+        radius,
+        angle,
+        speed: (Math.random() < 0.5 ? 1 : -1) * (0.12 + Math.random() * 0.22),
+        yBase,
+        yAmp: 0.6 + Math.random() * 1.0,
+        ySpd: 0.4 + Math.random() * 0.7,
+        yPhase: Math.random() * Math.PI * 2,
+      });
+      positions[i * 3]     = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = yBase;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uSize: { value: 220.0 } },
+      vertexShader: `
+        uniform float uSize;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uSize / max(0.1, -mv.z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        void main() {
+          vec2 uv = gl_PointCoord;
+          // Round top of the ghost (centered higher to leave room for skirt)
+          vec2 c = uv - vec2(0.5, 0.40);
+          float top = length(c);
+          float head = 1.0 - smoothstep(0.22, 0.36, top);
+          // Wavy bottom skirt
+          float skirtTop = 0.45;
+          float skirtBottom = 0.78 + 0.06 * sin(uv.x * 24.0);
+          float inSkirt = step(abs(uv.x - 0.5), 0.28) * step(uv.y, skirtBottom) * step(skirtTop, uv.y);
+          float body = max(head, inSkirt);
+          // Eyes
+          float eL = step(length(uv - vec2(0.40, 0.42)), 0.045);
+          float eR = step(length(uv - vec2(0.60, 0.42)), 0.045);
+          float eyes = max(eL, eR);
+          vec3 col = mix(vec3(0.85, 0.92, 1.0), vec3(0.05, 0.05, 0.12), eyes);
+          float alpha = body * 0.45 - eyes * 0.45;
+          if (alpha <= 0.0) discard;
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this._ghosts = new THREE.Points(geo, mat);
+    this._ghostData = orbits;
+    this.scene.add(this._ghosts);
+  }
+
+  // Orange fireball sprites bobbing around in the abyss. Bright hot core
+  // with a softer halo, additive-blended so they glow against the goo.
+  _buildFireballs() {
+    const COUNT = 9;
+    const positions = new Float32Array(COUNT * 3);
+    const orbits = [];
+    for (let i = 0; i < COUNT; i++) {
+      const radius = 7 + Math.random() * 13;
+      const angle = Math.random() * Math.PI * 2;
+      const yBase = -1 - Math.random() * 5;
+      orbits.push({
+        radius,
+        angle,
+        speed: (Math.random() < 0.5 ? 1 : -1) * (0.18 + Math.random() * 0.30),
+        yBase,
+        yAmp: 0.35 + Math.random() * 0.55,
+        ySpd: 0.8 + Math.random() * 1.0,
+        yPhase: Math.random() * Math.PI * 2,
+        size: 90 + Math.random() * 60,
+      });
+      positions[i * 3]     = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = yBase;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    const sizes = new Float32Array(orbits.map(o => o.size));
+    const seeds = new Float32Array(orbits.map(() => Math.random()));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("aSize",    new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute("aSeed",    new THREE.BufferAttribute(seeds, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        attribute float aSize;
+        attribute float aSeed;
+        varying float vSeed;
+        uniform float uTime;
+        void main() {
+          vSeed = aSeed;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          float flick = 0.85 + 0.15 * sin(uTime * 6.0 + aSeed * 6.28);
+          gl_PointSize = aSize * flick / max(0.1, -mv.z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        varying float vSeed;
+        void main() {
+          vec2 c = gl_PointCoord - vec2(0.5);
+          float d = length(c);
+          if (d > 0.5) discard;
+          float core = 1.0 - smoothstep(0.0, 0.16, d);
+          float glow = 1.0 - smoothstep(0.16, 0.50, d);
+          vec3 yellow = vec3(1.0, 0.95, 0.55);
+          vec3 orange = vec3(1.0, 0.55, 0.10);
+          vec3 col = mix(orange, yellow, core);
+          float alpha = max(core, glow * 0.55);
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this._fireballs = new THREE.Points(geo, mat);
+    this._fireballData = orbits;
+    this._fireballMat = mat;
+    this.scene.add(this._fireballs);
+  }
+
+  _animateGhosts(dt) {
+    if (!this._ghosts) return;
+    const pos = this._ghosts.geometry.attributes.position;
+    const arr = pos.array;
+    for (let i = 0; i < this._ghostData.length; i++) {
+      const d = this._ghostData[i];
+      d.angle += d.speed * dt;
+      d.yPhase += d.ySpd * dt;
+      arr[i * 3]     = Math.cos(d.angle) * d.radius;
+      arr[i * 3 + 1] = d.yBase + Math.sin(d.yPhase) * d.yAmp;
+      arr[i * 3 + 2] = Math.sin(d.angle) * d.radius;
+    }
+    pos.needsUpdate = true;
+  }
+
+  _animateFireballs(dt) {
+    if (!this._fireballs) return;
+    const pos = this._fireballs.geometry.attributes.position;
+    const arr = pos.array;
+    for (let i = 0; i < this._fireballData.length; i++) {
+      const d = this._fireballData[i];
+      d.angle += d.speed * dt;
+      d.yPhase += d.ySpd * dt;
+      arr[i * 3]     = Math.cos(d.angle) * d.radius;
+      arr[i * 3 + 1] = d.yBase + Math.sin(d.yPhase) * d.yAmp;
+      arr[i * 3 + 2] = Math.sin(d.angle) * d.radius;
+    }
+    pos.needsUpdate = true;
+    if (this._fireballMat) this._fireballMat.uniforms.uTime.value += dt;
+  }
+
+  _animateGoo(dt) {
+    if (this._gooLavaMat) this._gooLavaMat.uniforms.uTime.value += dt;
+  }
+
+  // Sparkle trail behind the player. Each frame that the player moved more
+  // than a threshold, drop a particle at their previous foot position.
+  // Particles rise slightly and fade out over ~900ms.
+  _buildPlayerTrail() {
+    const COUNT = 80;
+    const positions = new Float32Array(COUNT * 3);
+    const ages = new Float32Array(COUNT);
+    for (let i = 0; i < COUNT; i++) {
+      positions[i * 3 + 1] = -100; // off-screen until spawned
+      ages[i] = -1;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("aAge",     new THREE.BufferAttribute(ages, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uSize: { value: 65.0 } },
+      vertexShader: `
+        attribute float aAge;
+        varying float vAge;
+        uniform float uSize;
+        void main() {
+          vAge = aAge;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          float life = 0.9;
+          float k = clamp(aAge / life, 0.0, 1.0);
+          float sz = (1.0 - k * 0.7);
+          gl_PointSize = uSize * sz / max(0.1, -mv.z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        varying float vAge;
+        void main() {
+          if (vAge < 0.0) discard;
+          vec2 c = gl_PointCoord - vec2(0.5);
+          float d = length(c);
+          if (d > 0.5) discard;
+          float life = 0.9;
+          float k = clamp(vAge / life, 0.0, 1.0);
+          float soft = 1.0 - smoothstep(0.0, 0.5, d);
+          vec3 hot  = vec3(1.0, 0.95, 0.55);
+          vec3 cool = vec3(0.65, 0.85, 1.0);
+          vec3 col = mix(hot, cool, k);
+          float alpha = soft * (1.0 - k) * 0.85;
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this._trail = new THREE.Points(geo, mat);
+    this._trail.frustumCulled = false;
+    this._trailData = {
+      positions, ages, count: COUNT, nextEmit: 0,
+      lastX: 0, lastZ: 0, lastSet: false,
+      emitTimer: 0,
+    };
+    this.scene.add(this._trail);
+  }
+
+  _animatePlayerTrail(dt) {
+    if (!this._trail) return;
+    const data = this._trailData;
+    const px = this.playerMesh.position.x;
+    const pz = this.playerMesh.position.z;
+    // Distance moved since last frame; if non-trivial, emit a particle
+    // (rate-limited so a fast slide doesn't carpet the floor).
+    data.emitTimer -= dt;
+    if (data.lastSet) {
+      const dx = px - data.lastX;
+      const dz = pz - data.lastZ;
+      const moved = Math.hypot(dx, dz);
+      if (moved > 0.02 && data.emitTimer <= 0) {
+        const idx = data.nextEmit;
+        data.positions[idx * 3]     = px - dx * 0.4 + (Math.random() - 0.5) * 0.18;
+        data.positions[idx * 3 + 1] = 0.10 + Math.random() * 0.08;
+        data.positions[idx * 3 + 2] = pz - dz * 0.4 + (Math.random() - 0.5) * 0.18;
+        data.ages[idx] = 0;
+        data.nextEmit = (idx + 1) % data.count;
+        data.emitTimer = 0.045;
+      }
+    }
+    data.lastX = px;
+    data.lastZ = pz;
+    data.lastSet = true;
+
+    // Advance ages + slow rise, kill expired
+    for (let i = 0; i < data.count; i++) {
+      if (data.ages[i] < 0) continue;
+      data.ages[i] += dt;
+      if (data.ages[i] > 0.9) {
+        data.ages[i] = -1;
+        data.positions[i * 3 + 1] = -100;
+      } else {
+        data.positions[i * 3 + 1] += 0.6 * dt;
+      }
+    }
+    this._trail.geometry.attributes.position.needsUpdate = true;
+    this._trail.geometry.attributes.aAge.needsUpdate = true;
   }
 
   _animateAbyssParticles(dt) {
@@ -866,7 +1194,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=134", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=135", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1484,6 +1812,10 @@ export class Renderer {
     this._animateBombAuras();
     if (this._mixer) this._mixer.update(dt);
     this._animateAbyssParticles(dt);
+    this._animateGoo(dt);
+    this._animateGhosts(dt);
+    this._animateFireballs(dt);
+    this._animatePlayerTrail(dt);
   }
 
   render() {
