@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=127");
+      const a = new Audio("assets/audio/silence.wav?v=128");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -179,8 +179,9 @@ export class AudioEngine {
     moogIn.connect(dry);
     moogIn.connect(conv);
 
-    // Tempo - slow, lurching, dramatic.
-    const beat = 60 / 56;
+    // Tempo - a little bouncier for Ghost-House lurch. Still slow enough
+    // to feel weighty.
+    const beat = 60 / 72;
     const bar  = beat * 4;
 
     // Sub-bass + bass + low-register pitches.
@@ -189,37 +190,42 @@ export class AudioEngine {
     // High-register pitches for spiny bars.
     const G3 = 196.00, Bb3 = 233.08, D4 = 293.66;
     const A3 = 220.00, Csh4 = 277.18, E4 = 329.63, G4 = 392.00;
-    // Toccata mordent + descent pitches.
-    const Bb4 = 466.16, G4m = 392.00, C5 = 523.25, D5 = 587.33;
-    const E5 = 659.25, F5 = 698.46, G5 = 783.99, A5 = 880.00;
-    const A4 = 440.00;
+    // Spiny melody pitches: chromatic descent through D minor.
+    const G4m = 392.00, Ab4 = 415.30, A4 = 440.00, Bb4 = 466.16;
+    const C5 = 523.25, Csh5 = 554.37, D5 = 587.33;
+    const E5 = 659.25, F5 = 698.46, Fsh5 = 739.99, G5 = 783.99;
+    const Ab5 = 830.61, A5 = 880.00;
 
-    // Mordent: a 3-note ornament that opens both Toccata phrases. Quick,
-    // 60ms per note, then the held note sustains for ~half a beat.
-    const mord = (top, lower, holdDur) => ([
-      { f: top,   when: 0.000, dur: 0.07 },
-      { f: lower, when: 0.070, dur: 0.07 },
-      { f: top,   when: 0.140, dur: holdDur },
+    // Boo-laugh ornament: A, half-step-below neighbor, A. Chromatic
+    // (instead of the diatonic mordent from the Toccata version) gives
+    // it that mocking Ghost-House grin.
+    const boo = (top, neighbor, holdDur) => ([
+      { f: top,      when: 0.000, dur: 0.06 },
+      { f: neighbor, when: 0.060, dur: 0.06 },
+      { f: top,      when: 0.120, dur: holdDur },
     ]);
 
-    // Bar 2 (over Gm) - high D5 Toccata mordent + descent to Gm root.
+    // Bar 2 (over Gm) - boo laugh on D5 + chromatic descent landing on G.
     const TOC_GM = [
-      ...mord(D5, C5, beat * 0.7),
-      { f: D5,  when: beat * 1.00, dur: beat * 0.45 },
-      { f: C5,  when: beat * 1.50, dur: beat * 0.45 },
-      { f: Bb4, when: beat * 2.00, dur: beat * 0.45 },
-      { f: A4,  when: beat * 2.50, dur: beat * 0.45 },
-      { f: G4m, when: beat * 3.00, dur: beat * 1.00 },
+      ...boo(D5, Csh5, beat * 0.55),
+      { f: D5,  when: beat * 1.00, dur: beat * 0.40 },
+      { f: Csh5, when: beat * 1.45, dur: beat * 0.40 },
+      { f: C5,  when: beat * 1.90, dur: beat * 0.40 },
+      { f: Bb4, when: beat * 2.35, dur: beat * 0.40 },
+      { f: A4,  when: beat * 2.80, dur: beat * 0.40 },
+      { f: G4m, when: beat * 3.25, dur: beat * 0.75 },
     ];
-    // Bar 4 (over A7) - climactic A5 mordent + descent that lands on D
-    // when the loop restarts.
+    // Bar 4 (over A7) - boo laugh on A5 + chromatic descent that lands
+    // on D when the loop restarts.
     const TOC_A7 = [
-      ...mord(A5, G5, beat * 0.7),
-      { f: A5, when: beat * 1.00, dur: beat * 0.45 },
-      { f: G5, when: beat * 1.50, dur: beat * 0.45 },
-      { f: F5, when: beat * 2.00, dur: beat * 0.45 },
-      { f: E5, when: beat * 2.50, dur: beat * 0.45 },
-      { f: D5, when: beat * 3.00, dur: beat * 1.00 },
+      ...boo(A5, Ab5, beat * 0.55),
+      { f: A5,   when: beat * 1.00, dur: beat * 0.40 },
+      { f: Ab5,  when: beat * 1.45, dur: beat * 0.40 },
+      { f: G5,   when: beat * 1.90, dur: beat * 0.40 },
+      { f: Fsh5, when: beat * 2.35, dur: beat * 0.40 },
+      { f: F5,   when: beat * 2.80, dur: beat * 0.40 },
+      { f: E5,   when: beat * 3.25, dur: beat * 0.40 },
+      { f: D5,   when: beat * 3.70, dur: beat * 0.30 },
     ];
 
     const progression = [
@@ -269,16 +275,22 @@ export class AudioEngine {
     const m = this._music;
     const c = m.progression[idx];
 
-    // Chord swell across the full bar. DEEP bars get warm low harmonics
-    // and a slow swell; SPINY bars get brighter upper harmonics and a
-    // faster lift so the high register feels piercing.
-    const chordOpts = c.spiny
-      ? { attack: 0.40, peak: 0.22, release: 0.30,
-          harms: [[1, 0.22], [2, 0.20], [3, 0.16], [4, 0.12], [6, 0.07], [8, 0.04]] }
-      : { attack: 0.70, peak: 0.42, release: 0.35,
-          harms: [[1, 0.42], [2, 0.26], [3, 0.10], [4, 0.05]] };
-    for (const f of c.chord) {
-      this._organVoice(t, m.bar * 0.96, f, chordOpts);
+    // DEEP bars: warm low chord swells across the full bar - foundation.
+    // SPINY bars: short staccato chord stab on beat 1 only so the
+    // chromatic melody on top has room to breathe (the Ghost-House
+    // "plink" feel rather than a wall of sustained organ).
+    if (c.spiny) {
+      const stabOpts = { attack: 0.04, peak: 0.20, release: 0.30,
+        harms: [[1, 0.20], [2, 0.18], [3, 0.14], [4, 0.10], [6, 0.05]] };
+      for (const f of c.chord) {
+        this._organVoice(t, m.beat * 1.4, f, stabOpts);
+      }
+    } else {
+      const swellOpts = { attack: 0.70, peak: 0.42, release: 0.35,
+        harms: [[1, 0.42], [2, 0.26], [3, 0.10], [4, 0.05]] };
+      for (const f of c.chord) {
+        this._organVoice(t, m.bar * 0.96, f, swellOpts);
+      }
     }
 
     // Bass pedal on the downbeat. A7 (cadence) gets a second whack on
