@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=132");
+      const a = new Audio("assets/audio/silence.wav?v=133");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -298,14 +298,22 @@ export class AudioEngine {
       vibrato: true,
     };
 
-    // BASS - pedal on b1, or walking root-5th-root-5th in section C.
-    if (section.walking) {
-      this._moogBass(t,             chord.bass,       0.55);
-      this._moogBass(t + m.beat,    chord.bass * 1.5, 0.50);
-      this._moogBass(t + m.beat*2,  chord.bass,       0.55);
-      this._moogBass(t + m.beat*3,  chord.bass * 1.5, 0.50);
-    } else {
-      this._moogBass(t, chord.bass);
+    // BEAT - kick on every quarter + sub-bass pulse on every quarter,
+    // for the Stranger-Things 4/4 drive underneath. Walking section
+    // alternates bass root/5th to keep the climb feel. The climax
+    // section doubles the bass to 8th-notes for extra urgency.
+    const sectionIdx = Math.floor(idx / 8);
+    const isClimax = sectionIdx === 4;
+    for (let i = 0; i < 4; i++) {
+      this._kick(t + i * m.beat);
+      const bf = section.walking && (i % 2 === 1) ? chord.bass * 1.5 : chord.bass;
+      this._pulseBass(t + i * m.beat, bf);
+    }
+    if (isClimax) {
+      // Offbeat pulses turn the bass into 8th notes for the climax
+      for (let i = 0; i < 4; i++) {
+        this._pulseBass(t + (i + 0.5) * m.beat, chord.bass, 0.75);
+      }
     }
 
     // PAD - sustained chord voicing across the bar.
@@ -451,6 +459,67 @@ export class AudioEngine {
     filt.connect(g).connect(this._music.moogIn);
     o1.start(t); o2.start(t);
     o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+  }
+
+  // Short, plucky version of the Moog bass for the per-quarter pulse
+  // pattern. Tight envelope so consecutive pulses don't smear into
+  // each other. Stranger-Things "synth bass on every beat" character.
+  _pulseBass(t, freq, gainMult = 1.0) {
+    if (!this._music) return;
+    const ctx = this.ctx;
+    const dur = 0.22;
+    const o = ctx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.value = freq;
+    const filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.Q.value = 7;
+    filt.frequency.setValueAtTime(1500, t);
+    filt.frequency.exponentialRampToValueAtTime(180, t + 0.16);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.30 * gainMult, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+    o.connect(filt).connect(g).connect(this._music.moogIn);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+
+  // Kick drum: pitched sine sweep (130->45Hz over 60ms) for the body
+  // plus a short noise click for transient definition. Drives the 4/4
+  // pulse underneath the music.
+  _kick(t) {
+    if (!this._music) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(130, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.06);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.55, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0005, t + 0.18);
+    o.connect(g).connect(this._music.moogIn);
+    o.start(t);
+    o.stop(t + 0.2);
+
+    // Transient click on top
+    const noiseLen = Math.max(1, Math.floor(ctx.sampleRate * 0.018));
+    const buf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / noiseLen);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const nf = ctx.createBiquadFilter();
+    nf.type = "highpass";
+    nf.frequency.value = 1800;
+    const ng = ctx.createGain();
+    ng.gain.value = 0.16;
+    noise.connect(nf).connect(ng).connect(this._music.moogIn);
+    noise.start(t);
+    noise.stop(t + 0.025);
   }
 
   stopMusic() {
