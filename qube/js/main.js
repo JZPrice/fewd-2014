@@ -1,13 +1,13 @@
-import { Renderer } from "./renderer.js?v=118";
-import { Input } from "./input.js?v=118";
-import { AudioEngine } from "./audio.js?v=118";
-import { HUD } from "./hud.js?v=118";
-import { Game } from "./game.js?v=118";
-import { Debugger } from "./debug.js?v=118";
-import { Haptics } from "./haptics.js?v=118";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=118";
-import { CharacterPreview } from "./charPreview.js?v=118";
-import { BombPreview } from "./bombPreview.js?v=118";
+import { Renderer } from "./renderer.js?v=119";
+import { Input } from "./input.js?v=119";
+import { AudioEngine } from "./audio.js?v=119";
+import { HUD } from "./hud.js?v=119";
+import { Game } from "./game.js?v=119";
+import { Debugger } from "./debug.js?v=119";
+import { Haptics } from "./haptics.js?v=119";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=119";
+import { CharacterPreview } from "./charPreview.js?v=119";
+import { BombPreview } from "./bombPreview.js?v=119";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -151,6 +151,19 @@ if (fastBtn) {
   fastBtn.addEventListener("contextmenu", (e) => e.preventDefault());
   window.addEventListener("pointerup", fastUp);
   window.addEventListener("blur", fastUp);
+}
+
+// Pause toggle. Tap to freeze / resume the playfield.
+const pauseBtn = document.getElementById("pause-btn");
+if (pauseBtn) {
+  const tap = (e) => {
+    e.preventDefault();
+    game.togglePaused();
+    pauseBtn.classList.toggle("paused", game.paused);
+    pauseBtn.setAttribute("aria-label", game.paused ? "resume" : "pause");
+  };
+  pauseBtn.addEventListener("pointerdown", tap);
+  pauseBtn.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
 // --- Virtual joystick -------------------------------------------------------
