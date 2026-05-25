@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=116";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=116";
+import { Cube } from "./cube.js?v=117";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=117";
 
 export class Stage {
   constructor(stageDef) {
@@ -90,6 +90,20 @@ export class Stage {
 
   visibleCubes() {
     return this.cubes.filter(c => !c.dead);
+  }
+
+  // gz of the front-most (lowest gz) cube of the active wave that's still
+  // alive and rolling. Returns null if no active cubes are on the field.
+  // Used by Game to engage the tight camera framing when the player is
+  // close to the front line of blocks.
+  frontActiveCubeZ() {
+    let minZ = Infinity;
+    for (const c of this.cubes) {
+      if (c.dead || c.fallingOff) continue;
+      if (c.waveIndex !== this.waveIndex) continue;
+      if (c.gz < minZ) minZ = c.gz;
+    }
+    return Number.isFinite(minZ) ? minZ : null;
   }
 
   activeCubeAt(x, z) {
