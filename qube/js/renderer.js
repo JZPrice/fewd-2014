@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=116";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=117";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -153,6 +153,20 @@ export class Renderer {
     this._baseCamZ = 5.8;
     this._followDZ = 6.0;
     this._lookY = -3.5;
+    // Two framing presets. The default per-aspect values come from
+    // onResize; the "tight" preset is hand-tuned for moments when the
+    // player is right up against the active wave. _tightBlend is eased
+    // between 0 and _tightBlendTarget each frame.
+    this._defaultFov = 58;
+    this._defaultCamY = 5.8;
+    this._defaultFollowDZ = 6.0;
+    this._defaultLookY = -3.5;
+    this._tightFov = 39;
+    this._tightCamY = 1.80;
+    this._tightFollowDZ = 7.80;
+    this._tightLookY = -1.70;
+    this._tightBlend = 0;
+    this._tightBlendTarget = 0;
     this.camera = new THREE.PerspectiveCamera(58, 1, 0.1, 100);
     this.camera.position.set(0, this._baseCamY, this._baseCamZ);
     this.camera.lookAt(0, this._lookY, this._lookZ);
@@ -852,7 +866,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=116", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=117", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1411,6 +1425,21 @@ export class Renderer {
     const target = this._toWorld(player.gx, player.gz);
     const halflife = this.followHalflife;
 
+    // Ease the framing-preset blend toward its target, then interpolate
+    // each camera knob between default and tight.
+    const k = 1 - Math.pow(0.5, (dt * 1000) / 220);
+    this._tightBlend += (this._tightBlendTarget - this._tightBlend) * k;
+    const b = this._tightBlend;
+    const mix = (a, c) => a + (c - a) * b;
+    const fov = mix(this._defaultFov, this._tightFov);
+    this._baseCamY = mix(this._defaultCamY, this._tightCamY);
+    this._followDZ = mix(this._defaultFollowDZ, this._tightFollowDZ);
+    this._lookY = mix(this._defaultLookY, this._tightLookY);
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+
     // Critically-damped spring on follow position (x, z) and the lookAt mix.
     [this._camPosX,  this._camVelX]  = Renderer._springStep(this._camPosX,  this._camVelX,  target.x, dt, halflife);
     [this._camPosZ,  this._camVelZ]  = Renderer._springStep(this._camPosZ,  this._camVelZ,  target.z, dt, halflife);
@@ -1467,8 +1496,8 @@ export class Renderer {
     const aspect = w / h;
     this.camera.aspect = aspect;
 
-    // _baseCamY = height above floor; _followDZ = how far behind the player
-    // the camera sits. Smaller = tighter framing. Closer for narrower screens.
+    // Default-preset framing per aspect; updateCamera reads the lerped
+    // values from _defaultX <-> _tightX based on _tightBlend.
     let camY, followDZ, fov;
     if (aspect < 0.9) {
       fov = 62; camY = 6.4; followDZ = 7.0;
@@ -1477,12 +1506,22 @@ export class Renderer {
     } else {
       fov = 52; camY = 4.6; followDZ = 5.4;
     }
+    this._defaultFov = fov;
+    this._defaultCamY = camY;
+    this._defaultFollowDZ = followDZ;
     this.camera.fov = fov;
     this._baseCamY = camY;
     this._followDZ = followDZ;
     this.camera.position.set(0, camY, this._lookZ + followDZ);
     this.camera.lookAt(0, this._lookY, this._lookZ);
     this.camera.updateProjectionMatrix();
+  }
+
+  // Engage / disengage the tight framing preset. Game calls with 1 when
+  // the player is right up against the active wave, 0 otherwise. Renderer
+  // eases the actual camera params toward the chosen target each frame.
+  setTightBlend(target) {
+    this._tightBlendTarget = Math.max(0, Math.min(1, target));
   }
 
   clearAllCubes() {

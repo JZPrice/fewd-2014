@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=116";
-import { Player } from "./player.js?v=116";
-import { Stage } from "./stage.js?v=116";
-import { STAGES } from "./stages.js?v=116";
-import { GRID_W, GRID_D } from "./config.js?v=116";
+import { Grid } from "./grid.js?v=117";
+import { Player } from "./player.js?v=117";
+import { Stage } from "./stage.js?v=117";
+import { STAGES } from "./stages.js?v=117";
+import { GRID_W, GRID_D } from "./config.js?v=117";
 
 const STATE = {
   TITLE: "title",
@@ -441,6 +441,17 @@ export class Game {
         this.stageIndex++;
         this._beginStage(now);
       }
+    }
+
+    // Engage the tight camera framing when the player is within 3 tiles
+    // of the active wave's front-most cube. Disengage otherwise; the
+    // renderer eases the params either way.
+    if (this.stage && this.state === STATE.PLAYING) {
+      const frontZ = this.stage.frontActiveCubeZ();
+      const dist = frontZ != null ? frontZ - this.player.gz : Infinity;
+      this.renderer.setTightBlend?.(dist > 0 && dist <= 3 ? 1 : 0);
+    } else {
+      this.renderer.setTightBlend?.(0);
     }
 
     this.renderer.syncFloor(this.grid);
