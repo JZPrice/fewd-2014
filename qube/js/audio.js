@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=129");
+      const a = new Audio("assets/audio/silence.wav?v=130");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -141,16 +141,19 @@ export class AudioEngine {
   // (descending Bach-style runs AND spiny ascending sweeps) with chord
   // stabs that hit on the beats between phrases.
   //
-  // 4-bar loop in D minor at 72 BPM:
-  //   Bar 1: Toccata opening - A5 mordent + descent through D, lands on
-  //          the iconic C#°7 diminished crash
-  //   Bar 2: Spiny ASCENDING run from G4 up to G5, punctuated by Gm chord
-  //          stabs, ending on a high stab
-  //   Bar 3: Toccata-style call in F - F5 mordent + descent, lands on Bb
-  //          chord
-  //   Bar 4: Climax - A7 stab + ascending arpeggio A4->D5->F5->A5 + fast
-  //          descending finale A5->D5, resolving on a HUGE multi-octave
-  //          Dm crash that rings into the loop restart
+  // 8-bar loop in D minor at 72 BPM:
+  //   Bar 1: Toccata opening - A5 mordent + descent, ends on C#°7 dim crash
+  //   Bar 2: Spiny ASCENDING run G4->G5 with Gm chord stabs
+  //   Bar 3: Toccata call in F - F5 mordent + descent, lands on Bb chord
+  //   Bar 4: Mid-climax - A7 + ascending arp + descending finale + Dm stab
+  //   Bar 5: QUICK CHORD CLIMB Dm Em F Gm (one chord per beat, ascending),
+  //          walking bass D-E-F-G, melody D5 E5 F5 G5 on top
+  //   Bar 6: Climb continues Am Bb C Dm, walking bass A-Bb-C-D, melody
+  //          A5 Bb5 C6 D6 - peak of the arch
+  //   Bar 7: TENSION sustained C#°7 + high D6/C#6 trill + chromatic
+  //          descent down to A5
+  //   Bar 8: FULL RESOLUTION - massive multi-octave Dm crash + dramatic
+  //          descending sweep + final low Dm rumble, rings into next loop
   //
   // Notes are scheduled bar-by-bar via a 100ms look-ahead; oscillators
   // self-stop on their scheduled end time, so stopMusic() only needs to
@@ -193,12 +196,18 @@ export class AudioEngine {
     const D3 = 146.83, F3 = 174.61, A3 = 220.00;
     const G3 = 196.00, Bb3 = 233.08, Csh3 = 138.59, E3 = 164.81;
     // High-register chord + melody pitches.
+    const B3 = 246.94, C4 = 261.63;
     const D4 = 293.66, F4 = 349.23, A4 = 440.00;
     const Csh4 = 277.18, E4 = 329.63, G4 = 392.00, Bb4 = 466.16;
     const Eb4 = 311.13;
     const C5 = 523.25, Csh5 = 554.37, D5 = 587.33, Eb5 = 622.25;
     const E5 = 659.25, F5 = 698.46, G5 = 783.99, A5 = 880.00;
     const Fsh5 = 739.99;
+    // Top octave for the climax climb.
+    const Bb5 = 932.33, B5 = 987.77, C6 = 1046.50, Csh6 = 1108.73;
+    const D6 = 1174.66, E6 = 1318.51;
+    // Sub-bass walking notes.
+    const E1 = 41.20, F1 = 43.65, Cs1 = 34.65;
 
     // Helpers to build melody segments.
     const note = (when, f, dur) => ({ type: "note", when, f, dur });
@@ -239,21 +248,78 @@ export class AudioEngine {
       chord(beat * 3.20, [Bb2, D3, F3], beat * 0.70, "stab"),
     ];
 
-    // Bar 4 - Climax: A7 stab + ascending arpeggio + descending finale +
-    // huge multi-octave Dm crash on the last beat.
+    // Bar 4 - Mid-climax: A7 stab + ascending arpeggio + descending
+    // finale. Ends on a Dm stab (smaller than the full crash) so the
+    // climbing chord progression in bar 5 picks up the energy without
+    // a hard reset.
     const BAR_CLIMAX = [
       chord(0, [A3, Csh4, E4, G4], beat * 0.30, "stab"),
-      // Ascending arpeggio sweep
       ...run(beat * 0.30, [A4, Csh5, E5, A5], beat * 0.30),
       note(beat * 1.50, A5, beat * 0.40),
-      // Fast descending finale (sixteenth-note feel)
       ...run(beat * 1.90, [A5, G5, Fsh5, F5, E5, D5], beat * 0.15),
-      // HUGE Dm crash - low + mid + high - rings into the next loop
-      chord(beat * 2.95, [D2, F2, A2, D3, F3, A3, D4, F4, A4, D5], beat * 1.40, "big"),
+      chord(beat * 2.95, [D3, F3, A3, D4, F4, A4], beat * 1.05, "stab"),
     ];
 
-    const bars = [BAR_TOC_DM, BAR_UP_GM, BAR_TOC_BB, BAR_CLIMAX];
-    const basses = [D1, G1, Bb1, A1];
+    // Bar 5 - QUICK CHORD CLIMB (chord per beat ascending: Dm Em F Gm)
+    // with spiny melody walking up the root notes one octave above.
+    const BAR_CLIMB1 = [
+      chord(beat * 0.00, [D3, F3, A3],  beat * 0.85, "stab"),
+      note (beat * 0.00,  D5,           beat * 0.85),
+      chord(beat * 1.00, [E3, G3, B3],  beat * 0.85, "stab"),
+      note (beat * 1.00,  E5,           beat * 0.85),
+      chord(beat * 2.00, [F3, A3, C4],  beat * 0.85, "stab"),
+      note (beat * 2.00,  F5,           beat * 0.85),
+      chord(beat * 3.00, [G3, Bb3, D4], beat * 0.85, "stab"),
+      note (beat * 3.00,  G5,           beat * 0.85),
+    ];
+
+    // Bar 6 - Climb continues HIGHER (Am Bb C Dm), melody pushes from
+    // A5 up to high D6 - the top of the arch.
+    const BAR_CLIMB2 = [
+      chord(beat * 0.00, [A3, C4, E4],  beat * 0.85, "stab"),
+      note (beat * 0.00,  A5,           beat * 0.85),
+      chord(beat * 1.00, [Bb3, D4, F4], beat * 0.85, "stab"),
+      note (beat * 1.00,  Bb5,          beat * 0.85),
+      chord(beat * 2.00, [C4, E4, G4],  beat * 0.85, "stab"),
+      note (beat * 2.00,  C6,           beat * 0.85),
+      chord(beat * 3.00, [D4, F4, A4],  beat * 0.85, "stab"),
+      note (beat * 3.00,  D6,           beat * 0.85),
+    ];
+
+    // Bar 7 - TENSION: sustained C#°7 diminished pad with a high trill
+    // (D6-C#6) that descends chromatically into the resolution bar.
+    const BAR_TENSION = [
+      chord(0, [Csh4, E4, G4, Bb4], bar * 0.95, "dim"),
+      // High trill - the Phantom organist on the edge
+      note(beat * 0.05, D6,   0.10),
+      note(beat * 0.15, Csh6, 0.10),
+      note(beat * 0.25, D6,   0.10),
+      note(beat * 0.35, Csh6, 0.10),
+      note(beat * 0.50, D6,   beat * 0.80),
+      // Chromatic descent through the tension
+      note(beat * 1.40, D6,   beat * 0.35),
+      note(beat * 1.75, Csh6, beat * 0.35),
+      note(beat * 2.10, C6,   beat * 0.35),
+      note(beat * 2.45, B5,   beat * 0.35),
+      note(beat * 2.80, Bb5,  beat * 0.35),
+      note(beat * 3.15, A5,   beat * 0.85),
+    ];
+
+    // Bar 8 - FULL RESOLUTION: massive multi-octave Dm crash + dramatic
+    // descending sweep + final low Dm rumble. Rings into the loop restart.
+    const BAR_RESOLVE = [
+      chord(0, [D2, F2, A2, D3, F3, A3, D4, F4, A4, D5], beat * 1.55, "big"),
+      // Descending sweep over the crash
+      ...run(beat * 0.50, [D5, C5, Bb4, A4, G4, F4, E4, D4], beat * 0.18),
+      chord(beat * 2.10, [D3, F3, A3, D4, F4, A4], beat * 0.85, "stab"),
+      chord(beat * 3.05, [D1, D2, F2, A2], beat * 1.20, "big"),
+    ];
+
+    const bars = [
+      BAR_TOC_DM, BAR_UP_GM, BAR_TOC_BB, BAR_CLIMAX,
+      BAR_CLIMB1, BAR_CLIMB2, BAR_TENSION, BAR_RESOLVE,
+    ];
+    const basses = [D1, G1, Bb1, A1, D1, A1, A1, D1];
 
     this._music = {
       sub, dry, wet, conv, organIn, moogIn,
@@ -295,9 +361,26 @@ export class AudioEngine {
     const m = this._music;
     const events = m.bars[idx];
 
-    // Bass pedal on the downbeat (climax bar gets a second whack on b3).
-    this._moogBass(t, m.basses[idx]);
-    if (idx === 3) this._moogBass(t + m.beat * 2, m.basses[idx]);
+    // Bass pattern per bar. Most bars get a single moog thump on b1;
+    // the two climb bars walk the bass underfoot beat-by-beat (quieter
+    // so it doesn't drown the chord stabs); the resolve bar gets a
+    // second whack on b3 for a full cadence.
+    if (idx === 4) {
+      // BAR_CLIMB1: D E F G walking
+      this._moogBass(t + m.beat * 0, 36.71, 0.55);
+      this._moogBass(t + m.beat * 1, 41.20, 0.55);
+      this._moogBass(t + m.beat * 2, 43.65, 0.55);
+      this._moogBass(t + m.beat * 3, 49.00, 0.55);
+    } else if (idx === 5) {
+      // BAR_CLIMB2: A Bb C D walking
+      this._moogBass(t + m.beat * 0, 55.00, 0.55);
+      this._moogBass(t + m.beat * 1, 58.27, 0.55);
+      this._moogBass(t + m.beat * 2, 65.41, 0.55);
+      this._moogBass(t + m.beat * 3, 73.42, 0.55);
+    } else {
+      this._moogBass(t, m.basses[idx]);
+      if (idx === 7) this._moogBass(t + m.beat * 2, m.basses[idx]);
+    }
 
     // Spiny tone for the melodic flourishes (mordent, runs).
     const meloOpts = {
@@ -376,7 +459,7 @@ export class AudioEngine {
     }
   }
 
-  _moogBass(t, freq) {
+  _moogBass(t, freq, gainMult = 1.0) {
     if (!this._music) return;
     const ctx = this.ctx;
     const dur = 0.85;
@@ -395,7 +478,7 @@ export class AudioEngine {
     filt.frequency.exponentialRampToValueAtTime(85, t + 0.6);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.45, t + 0.005);
+    g.gain.linearRampToValueAtTime(0.45 * gainMult, t + 0.005);
     g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
     o1.connect(filt);
     o2.connect(filt);
