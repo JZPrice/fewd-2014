@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=118";
-import { Player } from "./player.js?v=118";
-import { Stage } from "./stage.js?v=118";
-import { STAGES } from "./stages.js?v=118";
-import { GRID_W, GRID_D } from "./config.js?v=118";
+import { Grid } from "./grid.js?v=119";
+import { Player } from "./player.js?v=119";
+import { Stage } from "./stage.js?v=119";
+import { STAGES } from "./stages.js?v=119";
+import { GRID_W, GRID_D } from "./config.js?v=119";
 
 const STATE = {
   TITLE: "title",
@@ -483,19 +483,18 @@ export class Game {
     this.player.setIntent(dx, dz);
     this.player.update(dt, now, this.grid, this.stage);
 
-    // Fast-forward: hold SHIFT (kbd) or the on-screen FAST button to make
-    // blocks tick + roll faster. Multiplier ramps from 1x at press to
-    // FAST_MAX_MULT over FAST_RAMP_MS of held time; releasing snaps back
-    // to 1x. Rescale the remaining wait whenever it changes so the speed
-    // shift is felt immediately.
-    const FAST_MAX_MULT = 6;
-    const FAST_RAMP_MS = 4000;
+    // Fast-forward: hold SHIFT (kbd) or the on-screen FAST button to
+    // make blocks tick + roll faster. Multiplier ramps linearly forever
+    // - holding longer keeps accelerating, no cap. Releasing snaps back
+    // to 1x. Rescale the remaining wait whenever it changes so the
+    // speed shift is felt immediately.
+    const FAST_RAMP_PER_SEC = 1.25;
     const wantFast = this.input.held.has("shift") || this.input.held.has("fast");
     let targetMult = 1;
     if (wantFast) {
       if (this._fastHeldT0 === 0) this._fastHeldT0 = now;
-      const u = Math.min(1, (now - this._fastHeldT0) / FAST_RAMP_MS);
-      targetMult = 1 + u * (FAST_MAX_MULT - 1);
+      const heldSec = (now - this._fastHeldT0) / 1000;
+      targetMult = 1 + heldSec * FAST_RAMP_PER_SEC;
     } else {
       this._fastHeldT0 = 0;
     }
