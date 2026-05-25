@@ -3,7 +3,7 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
-import { STAGES } from "./stages.js?v=125";
+import { STAGES } from "./stages.js?v=126";
 
 export class Debugger {
   constructor(game) {
