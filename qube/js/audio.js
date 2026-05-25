@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=133");
+      const a = new Audio("assets/audio/silence.wav?v=134");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
@@ -136,22 +136,12 @@ export class AudioEngine {
 
   // ----- Music -------------------------------------------------------------
   //
-  // Berlin-school climbing-arpeggio piece in D dorian. Constant 16th-note
-  // arpeggios cycle through the chord notes, a sustained pad breathes
-  // behind, the Moog bass pulses underneath, and a sparse lead floats
-  // on top in the later sections. The progression climbs through five
-  // 8-bar sections that each add a layer of complexity. ~2 minutes
-  // per loop at 78 BPM.
-  //
-  // Sections (each 8 bars):
-  //   A (bars  1- 8): intro - arpeggio + pad + bass, no lead
-  //   B (bars  9-16): + sparse ascending lead melody
-  //   C (bars 17-24): walking climb - chord roots walk up scale,
-  //                   walking bass under it
-  //   D (bars 25-32): octave arp (two-octave climb each bar), bigger
-  //                   melody phrases
-  //   E (bars 33-40): climax - widest arp + ascending lead octave-jump
-  //                   + final cadence back to Dm
+  // Mario Ghost Castle pipe organ. D minor at 80 BPM, 20-bar loop = 60s.
+  // Each bar: chord stabs on beats 1+3, a low organ pedal on beat 1, a
+  // chromatic walking bass underneath, and a sparse boo-laugh / chromatic
+  // descent melody on selected bars (lots of rests to leave space for
+  // the ghost). Pure additive-drawbar pipe organ tone through a big
+  // cathedral reverb - no Moog, no kick, no constant arpeggio.
   //
   // Notes are scheduled bar-by-bar via a 100ms look-ahead; oscillators
   // self-stop on their scheduled end time, so stopMusic() only needs to
@@ -161,82 +151,99 @@ export class AudioEngine {
     const ctx = this.ctx;
     const t0 = ctx.currentTime + 0.15;
 
-    // Drier room than the previous cathedral wash - Moog wants to be
-    // up-front and squelchy, not echoing through a chapel.
+    // Big cathedral - ghost-chapel pipe organ wants the long ringing tail.
     const conv = ctx.createConvolver();
-    conv.buffer = this._makeCathedralIR(1.4, 3.0);
+    conv.buffer = this._makeCathedralIR(3.6, 2.4);
 
-    const wet = ctx.createGain(); wet.gain.value = 0.25;
+    const wet = ctx.createGain(); wet.gain.value = 0.55;
     const dry = ctx.createGain(); dry.gain.value = 1.0;
     conv.connect(wet);
 
     const sub = ctx.createGain();
     sub.gain.setValueAtTime(0, t0);
-    sub.gain.linearRampToValueAtTime(1.0, t0 + 3.0);
+    sub.gain.linearRampToValueAtTime(1.0, t0 + 2.0);
     dry.connect(sub);
     wet.connect(sub);
     sub.connect(this.musicGain);
 
-    const organIn = ctx.createGain(); organIn.gain.value = 0.50;
+    const organIn = ctx.createGain(); organIn.gain.value = 0.55;
     organIn.connect(dry);
     organIn.connect(conv);
 
-    const moogIn = ctx.createGain(); moogIn.gain.value = 0.55;
-    moogIn.connect(dry);
-    moogIn.connect(conv);
-
-    // 78 BPM = bouncy and forward-moving without feeling rushed. 40
-    // bars at this tempo runs ~2:03.
-    const beat = 60 / 78;
+    // 80 BPM, 20 bars = exactly 60 seconds.
+    const beat = 60 / 80;
     const bar  = beat * 4;
 
-    // Helper: midi-style pitch lookup. Cleaner than 60 named consts.
     const SEMI = { C: 0, Cs: 1, D: 2, Eb: 3, E: 4, F: 5, Fs: 6, G: 7, Ab: 8, A: 9, Bb: 10, B: 11 };
     const p = (name, oct) => 440 * Math.pow(2, ((oct + 1) * 12 + SEMI[name] - 69) / 12);
 
-    // Chord library. `notes` is the close-position mid-register voicing;
-    // `bass` is the deep root used by the Moog pulse.
+    // Chord library (close-position mid-register voicings).
     const CHORDS = {
-      Dm: { notes: [p("D", 3), p("F", 3), p("A", 3)], bass: p("D", 1), arp: ["D", "F", "A"] },
-      Em: { notes: [p("E", 3), p("G", 3), p("B", 3)], bass: p("E", 1), arp: ["E", "G", "B"] },
-      F:  { notes: [p("F", 3), p("A", 3), p("C", 4)], bass: p("F", 1), arp: ["F", "A", "C"] },
-      G:  { notes: [p("G", 3), p("B", 3), p("D", 4)], bass: p("G", 1), arp: ["G", "B", "D"] },
-      Am: { notes: [p("A", 3), p("C", 4), p("E", 4)], bass: p("A", 1), arp: ["A", "C", "E"] },
-      Bb: { notes: [p("Bb", 3), p("D", 4), p("F", 4)], bass: p("Bb", 1), arp: ["Bb", "D", "F"] },
-      C:  { notes: [p("C", 4), p("E", 4), p("G", 4)], bass: p("C", 2), arp: ["C", "E", "G"] },
-      D:  { notes: [p("D", 4), p("Fs", 4), p("A", 4)], bass: p("D", 2), arp: ["D", "Fs", "A"] },
-      A7: { notes: [p("A", 3), p("Cs", 4), p("E", 4), p("G", 4)], bass: p("A", 1), arp: ["A", "Cs", "E"] },
+      Dm: [p("D", 3), p("F", 3), p("A", 3)],
+      Bb: [p("Bb", 3), p("D", 4), p("F", 4)],
+      A:  [p("A", 3), p("Cs", 4), p("E", 4)],
+      A7: [p("A", 3), p("Cs", 4), p("E", 4), p("G", 4)],
+      Gm: [p("G", 3), p("Bb", 3), p("D", 4)],
+      F:  [p("F", 3), p("A", 3), p("C", 4)],
     };
 
-    // 40-bar progression. Bars 1-16 use the main vamp; 17-24 walk
-    // chord roots up the D-dorian scale; 25-32 returns to the vamp
-    // with thicker layers; 33-40 is the climax cadence.
+    // 20-bar chord progression. Bars 1-4 hold Dm while the bass walks
+    // down chromatically (D-Cs-C-B) - the signature Ghost House move.
     const PROG = [
-      // Section A (intro)
-      "Dm", "F", "C", "Am",  "Dm", "F", "G",  "Bb",
-      // Section B (add lead)
-      "Dm", "F", "C", "Am",  "Dm", "F", "G",  "Bb",
-      // Section C (walking climb up D-dorian scale)
-      "Dm", "Em", "F", "G",  "Am", "Bb", "C", "D",
-      // Section D (back to vamp, thicker arp + bigger lead)
-      "Dm", "F", "C", "Am",  "Dm", "F", "G",  "Bb",
-      // Section E (climax progression with leading-tone A7)
-      "Dm", "Bb", "F", "C",  "Bb", "Am", "A7", "Dm",
+      "Dm", "Dm", "Dm", "Dm",     // bars  1- 4: Dm w/ chromatic descending bass
+      "Bb", "A",  "Dm", "A7",     // bars  5- 8: cadence
+      "Dm", "F",  "Bb", "A7",     // bars  9-12: turnaround
+      "Gm", "A7", "Dm", "A7",     // bars 13-16: minor-cadence
+      "Dm", "Dm", "Bb", "A7",     // bars 17-20: return + V leading back to Dm
     ];
 
-    // Per-section flags. complexity tunes filter brightness; lead/octave
-    // gate the optional layers; walking adds a beat-by-beat bass walk.
-    const SECTIONS = [
-      { lead: false, octaveArp: false, walking: false, filterBrightness: 0.9 },
-      { lead: true,  octaveArp: false, walking: false, filterBrightness: 1.0 },
-      { lead: true,  octaveArp: false, walking: true,  filterBrightness: 1.1 },
-      { lead: true,  octaveArp: true,  walking: false, filterBrightness: 1.2 },
-      { lead: true,  octaveArp: true,  walking: false, filterBrightness: 1.3 },
+    // Chromatic walking pedal bass per bar.
+    const BASS = [
+      p("D", 2),  p("Cs", 2), p("C", 2),  p("B", 1),
+      p("Bb", 1), p("A", 1),  p("D", 2),  p("A", 1),
+      p("D", 2),  p("F", 2),  p("Bb", 1), p("A", 1),
+      p("G", 1),  p("A", 1),  p("D", 2),  p("A", 1),
+      p("D", 2),  p("Cs", 2), p("Bb", 1), p("A", 1),
+    ];
+
+    // Melody helpers.
+    const boo = (top, neighbor) => [
+      { when: 0.000, f: top,      dur: 0.06 },
+      { when: 0.060, f: neighbor, dur: 0.06 },
+      { when: 0.120, f: top,      dur: beat * 0.70 },
+    ];
+    const descent = (notes, noteDur) =>
+      notes.map((f, i) => ({ when: i * noteDur, f, dur: noteDur * 0.85 }));
+    const hold = (f, dur) => [{ when: 0, f, dur }];
+
+    // Sparse Boo-laugh + chromatic-descent melodies, with rests on
+    // selected bars so the ghost has room to breathe.
+    const MELODY = [
+      boo(p("A", 5), p("Ab", 5)),                                                   // 1
+      descent([p("G", 5), p("Fs", 5), p("F", 5), p("E", 5)], beat * 0.95),          // 2
+      null,                                                                          // 3 (rest)
+      descent([p("Eb", 5), p("D", 5), p("C", 5), p("Bb", 4)], beat * 0.95),         // 4
+      null,                                                                          // 5 (rest)
+      boo(p("D", 5), p("Cs", 5)),                                                   // 6
+      null,                                                                          // 7 (rest)
+      hold(p("D", 5), beat * 3.4),                                                  // 8
+      boo(p("A", 5), p("Ab", 5)),                                                   // 9
+      descent([p("F", 5), p("E", 5), p("D", 5), p("C", 5)], beat * 0.95),           // 10
+      hold(p("F", 5), beat * 3.4),                                                  // 11
+      descent([p("Fs", 5), p("F", 5), p("E", 5), p("D", 5)], beat * 0.95),          // 12
+      boo(p("D", 5), p("Cs", 5)),                                                   // 13
+      descent([p("Cs", 5), p("C", 5), p("B", 4), p("Bb", 4)], beat * 0.95),         // 14
+      hold(p("D", 5), beat * 3.4),                                                  // 15
+      descent([p("C", 5), p("B", 4), p("A", 4), p("G", 4)], beat * 0.95),           // 16
+      boo(p("A", 5), p("Ab", 5)),                                                   // 17
+      descent([p("G", 5), p("Fs", 5), p("F", 5), p("E", 5)], beat * 0.95),          // 18
+      null,                                                                          // 19
+      descent([p("E", 5), p("D", 5), p("Cs", 5), p("D", 5)], beat * 0.95),          // 20
     ];
 
     this._music = {
-      sub, dry, wet, conv, organIn, moogIn,
-      bar, beat, p, CHORDS, PROG, SECTIONS,
+      sub, dry, wet, conv, organIn,
+      bar, beat, p, CHORDS, PROG, BASS, MELODY,
       barIndex: 0,
       nextBarAt: t0,
     };
@@ -272,126 +279,52 @@ export class AudioEngine {
   _schedBar(idx, t) {
     if (!this._music) return;
     const m = this._music;
-    const chordName = m.PROG[idx];
-    const chord = m.CHORDS[chordName];
-    const section = m.SECTIONS[Math.floor(idx / 8)];
-    const bright = section.filterBrightness;
+    const chord = m.CHORDS[m.PROG[idx]];
+    const bassFreq = m.BASS[idx];
+    const melody = m.MELODY[idx];
 
-    // Per-bar Moog patches. All filter values scale with the section
-    // brightness so later sections get progressively more "open".
-    const arpOpts = {
-      attack: 0.005, peak: 0.18, release: 0.04,
-      fStart: 2400 * bright, fEnd: 1300 * bright, fSweep: 0.04, fQ: 5,
-      detune: 6, voices: 2,
+    // Pipe organ chord stab on beats 1 and 3 (Mario Ghost oompah feel).
+    const chordOpts = {
+      attack: 0.04, peak: 0.22, release: 0.30,
+      harms: [[1, 0.32], [2, 0.20], [3, 0.10], [4, 0.05]],
     };
-    const padOpts = {
-      attack: 0.6, peak: 0.13, release: 0.4,
-      // Opens up across the bar (start dark, sweep bright) - that
-      // slow filter swell is core Moog pad character.
-      fStart: 600, fEnd: 1800 * bright, fSweep: m.bar * 0.7, fQ: 5,
-      detune: 11, voices: 3,
+    for (const f of chord) {
+      this._organVoice(t,                m.beat * 1.7, f, chordOpts);
+      this._organVoice(t + m.beat * 2.0, m.beat * 1.7, f, chordOpts);
+    }
+
+    // Low organ pedal (chromatic walking bass) - holds across the bar.
+    const bassOpts = {
+      attack: 0.06, peak: 0.40, release: 0.25,
+      harms: [[1, 0.55], [2, 0.30], [3, 0.10]],
     };
-    const leadOpts = {
-      attack: 0.015, peak: 0.30, release: 0.10,
-      fStart: 3600 * bright, fEnd: 1000 * bright, fSweep: 0.10, fQ: 8,
-      detune: 6, voices: 2,
-      vibrato: true,
-    };
+    this._organVoice(t, m.bar * 0.96, bassFreq, bassOpts);
 
-    // BEAT - kick on every quarter + sub-bass pulse on every quarter,
-    // for the Stranger-Things 4/4 drive underneath. Walking section
-    // alternates bass root/5th to keep the climb feel. The climax
-    // section doubles the bass to 8th-notes for extra urgency.
-    const sectionIdx = Math.floor(idx / 8);
-    const isClimax = sectionIdx === 4;
-    for (let i = 0; i < 4; i++) {
-      this._kick(t + i * m.beat);
-      const bf = section.walking && (i % 2 === 1) ? chord.bass * 1.5 : chord.bass;
-      this._pulseBass(t + i * m.beat, bf);
-    }
-    if (isClimax) {
-      // Offbeat pulses turn the bass into 8th notes for the climax
-      for (let i = 0; i < 4; i++) {
-        this._pulseBass(t + (i + 0.5) * m.beat, chord.bass, 0.75);
-      }
-    }
-
-    // PAD - sustained chord voicing across the bar.
-    for (const f of chord.notes) {
-      this._organVoice(t, m.bar * 0.97, f, padOpts);
-    }
-
-    // ARPEGGIO - 16th notes climbing through chord notes. Octave-arp
-    // sections include the next octave up for a wider climbing range.
-    const arpRoot = chord.arp;
-    const arpFreqs = section.octaveArp
-      ? [
-          m.p(arpRoot[0], 4), m.p(arpRoot[1], 4), m.p(arpRoot[2], 4),
-          m.p(arpRoot[0], 5), m.p(arpRoot[1], 5), m.p(arpRoot[2], 5),
-          m.p(arpRoot[0], 5), m.p(arpRoot[1], 4),
-        ]
-      : [
-          m.p(arpRoot[0], 4), m.p(arpRoot[1], 4), m.p(arpRoot[2], 4),
-          m.p(arpRoot[0], 5),
-        ];
-    const sixteenth = m.beat * 0.25;
-    for (let i = 0; i < 16; i++) {
-      this._organVoice(
-        t + i * sixteenth,
-        sixteenth * 0.85,
-        arpFreqs[i % arpFreqs.length],
-        arpOpts,
-      );
-    }
-
-    // LEAD - climbing 4-note phrase aligned to the chord. Plays one
-    // note per beat. Sparse: only every other bar in sections B/C/D,
-    // then every bar in section E (climax).
-    if (section.lead) {
-      const sectionIdx = Math.floor(idx / 8);
-      const barInSection = idx % 8;
-      const playThisBar = sectionIdx === 4 || barInSection % 2 === 1;
-      if (playThisBar) {
-        // Ascending chord-tone phrase: root, 3rd, 5th, octave-root.
-        const oct = section.octaveArp ? 5 : 4;
-        const leadPitches = [
-          m.p(arpRoot[0], oct),
-          m.p(arpRoot[1], oct),
-          m.p(arpRoot[2], oct),
-          m.p(arpRoot[0], oct + 1),
-        ];
-        for (let i = 0; i < 4; i++) {
-          this._organVoice(
-            t + i * m.beat,
-            m.beat * 0.85,
-            leadPitches[i],
-            leadOpts,
-          );
-        }
+    // Sparse boo-laugh / chromatic melody on selected bars only.
+    if (melody) {
+      const meloOpts = {
+        attack: 0.012, peak: 0.30, release: 0.08,
+        harms: [[1, 0.30], [2, 0.20], [3, 0.14], [4, 0.10], [6, 0.05]],
+        vibrato: true,
+      };
+      for (const n of melody) {
+        this._organVoice(t + n.when, n.dur, n.f, meloOpts);
       }
     }
   }
 
-  // Moog-style subtractive voice. Detuned saw stack feeds a resonant
-  // lowpass filter that's swept by an envelope on each trigger - that
-  // per-note "wow" is the classic Moog signature. Used for every
-  // musical element (lead, chord stab, sustained pad, climax) by
-  // varying envelope, filter sweep, and resonance.
+  // Additive pipe-organ voice. Detuned drawbar stack (1f, 2f, 3f, 4f at
+  // decreasing amplitudes) with soft chiff attack and slow release.
+  // Used for chord stabs, bass pedal, and melody - the harmonic mix
+  // and envelope differ per role.
   _organVoice(t, dur, freq, opts = {}) {
     if (!this._music) return;
     const ctx = this.ctx;
-    const attack  = opts.attack  ?? 0.015;
+    const attack  = opts.attack  ?? 0.05;
     const peak    = opts.peak    ?? 0.30;
-    const release = opts.release ?? 0.08;
-    const fStart  = opts.fStart  ?? 2500;
-    const fEnd    = opts.fEnd    ?? 700;
-    const fSweep  = opts.fSweep  ?? 0.12;
-    const fQ      = opts.fQ      ?? 7;
-    const detune  = opts.detune  ?? 8;
-    const voices  = opts.voices  ?? 2;
-    const type    = opts.type    ?? "sawtooth";
+    const release = opts.release ?? 0.20;
+    const harms   = opts.harms   ?? [[1, 0.30], [2, 0.18], [3, 0.10], [4, 0.06]];
 
-    // Amplitude envelope: attack -> hold @ peak -> release
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(peak, t + attack);
@@ -399,20 +332,10 @@ export class AudioEngine {
     env.gain.linearRampToValueAtTime(0, t + dur);
     env.connect(this._music.organIn);
 
-    // Resonant lowpass with sweep envelope - THE Moog sound
-    const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.Q.value = fQ;
-    filt.frequency.setValueAtTime(fStart, t);
-    const sweepEnd = t + Math.min(fSweep, Math.max(0.02, dur * 0.9));
-    filt.frequency.exponentialRampToValueAtTime(Math.max(40, fEnd), sweepEnd);
-    filt.connect(env);
-
-    // Optional pitch vibrato (mod-wheel style) for lead notes
     let vibG = null;
     if (opts.vibrato) {
       const vibLfo = ctx.createOscillator();
-      vibLfo.frequency.value = 5;
+      vibLfo.frequency.value = 4.5;
       vibG = ctx.createGain();
       vibG.gain.value = 6;
       vibLfo.connect(vibG);
@@ -420,106 +343,18 @@ export class AudioEngine {
       vibLfo.stop(t + dur + 0.1);
     }
 
-    // Detuned oscillator stack - thicker = wider detune + more voices
-    for (let i = 0; i < voices; i++) {
+    for (const [mult, amp] of harms) {
       const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.value = freq;
-      o.detune.value = (i - (voices - 1) / 2) * detune * 2;
+      o.type = "sawtooth";
+      o.frequency.value = freq * mult;
+      o.detune.value = (Math.random() - 0.5) * 6;
       if (vibG) vibG.connect(o.detune);
-      o.connect(filt);
+      const g = ctx.createGain();
+      g.gain.value = amp;
+      o.connect(g).connect(env);
       o.start(t);
       o.stop(t + dur + 0.1);
     }
-  }
-
-  _moogBass(t, freq, gainMult = 1.0) {
-    if (!this._music) return;
-    const ctx = this.ctx;
-    const dur = 0.85;
-    const o1 = ctx.createOscillator();
-    o1.type = "sawtooth";
-    o1.frequency.value = freq;
-    const o2 = ctx.createOscillator();
-    o2.type = "sawtooth";
-    o2.frequency.value = freq;
-    o2.detune.value = 9;
-    // Signature Moog: resonant lowpass swept by a fast decay envelope.
-    const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.Q.value = 12;
-    filt.frequency.setValueAtTime(2200, t);
-    filt.frequency.exponentialRampToValueAtTime(85, t + 0.6);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.45 * gainMult, t + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
-    o1.connect(filt);
-    o2.connect(filt);
-    filt.connect(g).connect(this._music.moogIn);
-    o1.start(t); o2.start(t);
-    o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
-  }
-
-  // Short, plucky version of the Moog bass for the per-quarter pulse
-  // pattern. Tight envelope so consecutive pulses don't smear into
-  // each other. Stranger-Things "synth bass on every beat" character.
-  _pulseBass(t, freq, gainMult = 1.0) {
-    if (!this._music) return;
-    const ctx = this.ctx;
-    const dur = 0.22;
-    const o = ctx.createOscillator();
-    o.type = "sawtooth";
-    o.frequency.value = freq;
-    const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.Q.value = 7;
-    filt.frequency.setValueAtTime(1500, t);
-    filt.frequency.exponentialRampToValueAtTime(180, t + 0.16);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.30 * gainMult, t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
-    o.connect(filt).connect(g).connect(this._music.moogIn);
-    o.start(t);
-    o.stop(t + dur + 0.05);
-  }
-
-  // Kick drum: pitched sine sweep (130->45Hz over 60ms) for the body
-  // plus a short noise click for transient definition. Drives the 4/4
-  // pulse underneath the music.
-  _kick(t) {
-    if (!this._music) return;
-    const ctx = this.ctx;
-    const o = ctx.createOscillator();
-    o.type = "sine";
-    o.frequency.setValueAtTime(130, t);
-    o.frequency.exponentialRampToValueAtTime(45, t + 0.06);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.55, t + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0005, t + 0.18);
-    o.connect(g).connect(this._music.moogIn);
-    o.start(t);
-    o.stop(t + 0.2);
-
-    // Transient click on top
-    const noiseLen = Math.max(1, Math.floor(ctx.sampleRate * 0.018));
-    const buf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < noiseLen; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / noiseLen);
-    }
-    const noise = ctx.createBufferSource();
-    noise.buffer = buf;
-    const nf = ctx.createBiquadFilter();
-    nf.type = "highpass";
-    nf.frequency.value = 1800;
-    const ng = ctx.createGain();
-    ng.gain.value = 0.16;
-    noise.connect(nf).connect(ng).connect(this._music.moogIn);
-    noise.start(t);
-    noise.stop(t + 0.025);
   }
 
   stopMusic() {
