@@ -1,8 +1,8 @@
-import { Grid } from "./grid.js?v=124";
-import { Player } from "./player.js?v=124";
-import { Stage } from "./stage.js?v=124";
-import { STAGES } from "./stages.js?v=124";
-import { GRID_W, GRID_D } from "./config.js?v=124";
+import { Grid } from "./grid.js?v=125";
+import { Player } from "./player.js?v=125";
+import { Stage } from "./stage.js?v=125";
+import { STAGES } from "./stages.js?v=125";
+import { GRID_W, GRID_D } from "./config.js?v=125";
 
 const STATE = {
   TITLE: "title",
@@ -82,6 +82,7 @@ export class Game {
     this.hud.hideGameOver();
     this.audio.init();
     this.audio.resume();
+    this.audio.startMusic?.();
     this.stageIndex = 0;
     this._beginStage(performance.now());
   }
@@ -210,6 +211,7 @@ export class Game {
     if (this.state === STATE.DEAD) return;
     this.state = STATE.DEAD;
     this.audio.death();
+    this.audio.stopMusic?.();
     this.haptics.death();
     this.renderer.shake?.(0.30, 400);
     this.player.startFall(performance.now());
