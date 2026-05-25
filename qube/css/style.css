@@ -367,12 +367,12 @@ body.touch #touch-controls {
   transition: transform 90ms ease, box-shadow 90ms ease, background 180ms ease;
 }
 .act-mark-fire.is-fire {
-  background: radial-gradient(circle at 50% 30%, #401822 0%, #0e0406 78%);
-  color: #ff2818;
+  background: radial-gradient(circle at 50% 30%, #1a3a22 0%, #06120a 78%);
+  color: #4cd97a;
   box-shadow:
     0 6px 0 rgba(0, 0, 0, 0.60),
-    inset 0 4px 3px rgba(255, 80, 80, 0.12),
-    inset 0 -5px 4px rgba(80, 0, 0, 0.50);
+    inset 0 4px 3px rgba(120, 240, 140, 0.12),
+    inset 0 -5px 4px rgba(0, 60, 20, 0.50);
 }
 .act-mark-fire.pressed {
   transform: translateY(3px);
