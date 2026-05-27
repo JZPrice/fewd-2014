@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#3f6b50" />
+  <title>snapshat &mdash; gut health, snapped</title>
+  <meta name="description" content="A private, on-device gut-health tracker. Snap a photo, match it to the Bristol Stool Chart, watch your trends." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="css/style.css?v=1" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ========== HOME VIEW ========== -->
+    <section class="view" data-view="home">
+      <header class="app-header">
+        <h1 class="brand">snapshat<span class="brand-dot">.</span></h1>
+        <p class="tagline">gut health, snapped &amp; tracked &mdash; privately.</p>
+      </header>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-num" id="stat-today">0</span>
+          <span class="stat-label">today</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-streak">0</span>
+          <span class="stat-label">day streak</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="stat-week-type">&mdash;</span>
+          <span class="stat-label">most this wk</span>
+        </div>
+      </div>
+
+      <button id="btn-new-snap" class="btn-primary btn-fab">
+        <span class="camera-glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M9 3l-1.5 2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.5L15 3H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+        </span>
+        New snap
+      </button>
+
+      <div class="section-head">
+        <h2>Recent</h2>
+        <button class="link-btn" data-go="history">view all</button>
+      </div>
+      <ul id="recent-list" class="entry-list">
+        <li class="empty">no snaps yet &mdash; tap <em>New snap</em> to start.</li>
+      </ul>
+
+      <div class="disclaimer-mini">
+        snapshat is for personal awareness, not medical diagnosis.
+        Persistent changes, blood, or pain &rarr; see a clinician.
+      </div>
+    </section>
+
+    <!-- ========== CAPTURE VIEW ========== -->
+    <section class="view hidden" data-view="capture">
+      <header class="view-header">
+        <button class="icon-btn" data-go="home" aria-label="back">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M15.5 4l-8 8 8 8 1.4-1.4L10.3 12l6.6-6.6z"/></svg>
+        </button>
+        <h2>Snap it</h2>
+        <span class="header-spacer"></span>
+      </header>
+
+      <div class="camera-stage">
+        <video id="camera-video" autoplay playsinline muted></video>
+        <canvas id="camera-canvas" class="hidden"></canvas>
+        <img id="captured-preview" class="hidden" alt="captured snap" />
+        <div id="camera-fallback" class="camera-fallback hidden">
+          <p>Camera unavailable.</p>
+          <p class="muted">You can upload a photo, or skip the photo &mdash; the classification is what matters.</p>
+        </div>
+      </div>
+
+      <div class="capture-controls">
+        <label class="icon-btn upload-btn" aria-label="upload from library">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M5 20h14v-2H5v2zM12 4l-5 5h3v6h4V9h3l-5-5z"/></svg>
+          <input type="file" id="file-input" accept="image/*" hidden />
+        </label>
+
+        <button id="shutter-btn" class="shutter" aria-label="capture">
+          <span class="shutter-inner"></span>
+        </button>
+
+        <button id="skip-photo-btn" class="icon-btn" aria-label="skip photo, classify only">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M5 12h11.2l-3.6-3.6L14 7l6 6-6 6-1.4-1.4L16.2 14H5v-2z"/></svg>
+        </button>
+      </div>
+
+      <div id="post-capture-controls" class="capture-controls hidden">
+        <button id="retake-btn" class="btn-ghost">Retake</button>
+        <button id="confirm-photo-btn" class="btn-primary">Classify &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ========== CLASSIFY VIEW ========== -->
+    <section class="view hidden" data-view="classify">
+      <header class="view-header">
+        <button class="icon-btn" id="classify-back" aria-label="back">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M15.5 4l-8 8 8 8 1.4-1.4L10.3 12l6.6-6.6z"/></svg>
+        </button>
+        <h2>Match the chart</h2>
+        <span class="header-spacer"></span>
+      </header>
+
+      <div class="classify-photo-wrap">
+        <img id="classify-photo" alt="" class="hidden" />
+      </div>
+
+      <p class="classify-help">Which type best matches?</p>
+
+      <ul id="type-list" class="type-list">
+        <!-- populated by JS -->
+      </ul>
+
+      <div class="notes-wrap">
+        <label for="notes-input">Notes (optional)</label>
+        <textarea id="notes-input" maxlength="500" placeholder="e.g. straining, urgency, blood, foods eaten, mood&hellip;"></textarea>
+        <div class="flag-row">
+          <label class="chk"><input type="checkbox" id="flag-blood" /> <span>blood</span></label>
+          <label class="chk"><input type="checkbox" id="flag-pain" /> <span>pain</span></label>
+          <label class="chk"><input type="checkbox" id="flag-urgent" /> <span>urgent</span></label>
+        </div>
+      </div>
+
+      <div class="save-row">
+        <button id="save-entry-btn" class="btn-primary" disabled>Save snap</button>
+      </div>
+    </section>
+
+    <!-- ========== HISTORY VIEW ========== -->
+    <section class="view hidden" data-view="history">
+      <header class="view-header">
+        <button class="icon-btn" data-go="home" aria-label="back">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M15.5 4l-8 8 8 8 1.4-1.4L10.3 12l6.6-6.6z"/></svg>
+        </button>
+        <h2>History</h2>
+        <span class="header-spacer"></span>
+      </header>
+      <div id="history-content"></div>
+    </section>
+
+    <!-- ========== INSIGHTS VIEW ========== -->
+    <section class="view hidden" data-view="insights">
+      <header class="view-header">
+        <button class="icon-btn" data-go="home" aria-label="back">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M15.5 4l-8 8 8 8 1.4-1.4L10.3 12l6.6-6.6z"/></svg>
+        </button>
+        <h2>Insights</h2>
+        <span class="header-spacer"></span>
+      </header>
+      <div id="insights-content"></div>
+    </section>
+
+    <!-- ========== ABOUT VIEW ========== -->
+    <section class="view hidden" data-view="about">
+      <header class="view-header">
+        <button class="icon-btn" data-go="home" aria-label="back">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M15.5 4l-8 8 8 8 1.4-1.4L10.3 12l6.6-6.6z"/></svg>
+        </button>
+        <h2>About</h2>
+        <span class="header-spacer"></span>
+      </header>
+      <div class="about-body">
+        <h3>What is this?</h3>
+        <p>
+          snapshat is a personal gut-health tracker. You snap a photo, match it to one of
+          the seven types on the <strong>Bristol Stool Chart</strong> &mdash; a real clinical
+          scale developed at the Bristol Royal Infirmary in 1997 &mdash; and the app builds
+          a private record of your trends over time.
+        </p>
+
+        <h3>Why bother?</h3>
+        <p>
+          Stool form is one of the simplest, cheapest signals of digestive health.
+          Patterns matter more than any single snap: chronic constipation (types 1&ndash;2),
+          chronic loose stools (types 6&ndash;7), or sudden changes from your personal
+          baseline are worth discussing with a clinician. Spotting changes early
+          is the goal &mdash; not diagnosis.
+        </p>
+
+        <h3>Privacy</h3>
+        <p>
+          Everything lives in your browser (<code>localStorage</code>). Photos are <em>never</em>
+          uploaded and <em>never</em> saved to disk &mdash; they only appear briefly during
+          classification, then they're discarded. Only the type, date, notes, and flags are kept.
+        </p>
+
+        <h3>This is not medical advice</h3>
+        <p>
+          snapshat does not diagnose anything. If you notice blood, persistent pain,
+          unexplained weight loss, or a sustained change in your bowel habits
+          (especially over age 45), please talk to a clinician. Colorectal cancer is
+          one of the most treatable cancers when caught early &mdash; routine screening
+          (colonoscopy, FIT test, etc.) saves lives.
+        </p>
+
+        <div class="danger-zone">
+          <h3>Danger zone</h3>
+          <button id="export-btn" class="btn-ghost">Export data (JSON)</button>
+          <button id="clear-btn" class="btn-danger">Clear all data</button>
+        </div>
+
+        <p class="version">snapshat &middot; v1</p>
+      </div>
+    </section>
+
+    <!-- ========== BOTTOM NAV ========== -->
+    <nav class="bottom-nav">
+      <button class="nav-btn" data-go="home" aria-label="home">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 3l9 8h-3v9h-4v-6h-4v6H6v-9H3l9-8z"/></svg>
+        <span>home</span>
+      </button>
+      <button class="nav-btn" data-go="history" aria-label="history">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 4a8 8 0 1 0 7.7 10h-2.1A6 6 0 1 1 12 6v3l4-4-4-4v3zm-1 4v5l4 2.4.8-1.4-3.3-2V8H11z"/></svg>
+        <span>history</span>
+      </button>
+      <button class="nav-btn nav-center" data-go="capture" aria-label="new snap">
+        <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M9 3l-1.5 2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.5L15 3H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10z"/></svg>
+      </button>
+      <button class="nav-btn" data-go="insights" aria-label="insights">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 20h3v-8H4v8zm6.5 0h3V4h-3v16zM17 20h3v-12h-3v12z"/></svg>
+        <span>insights</span>
+      </button>
+      <button class="nav-btn" data-go="about" aria-label="about">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        <span>about</span>
+      </button>
+    </nav>
+
+    <!-- ========== TOAST ========== -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="js/app.js?v=1" type="module"></script>
+</body>
+</html>
