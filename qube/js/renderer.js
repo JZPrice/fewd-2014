@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=138";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=139";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -186,31 +186,28 @@ export class Renderer {
 
     this.cubeMeshes = new Map();
     this._cubeGeom = new THREE.BoxGeometry(TILE * this.groutInset, TILE * this.groutInset, TILE * this.groutInset);
+    // White edge outline shared by every cube mesh. EdgesGeometry only
+    // emits lines where adjacent faces are non-coplanar -> the 12 box edges.
+    this._cubeEdgesGeom = new THREE.EdgesGeometry(this._cubeGeom);
+    this._cubeEdgesMat = new THREE.LineBasicMaterial({ color: 0xffffff });
 
-    // Normal cubes match the floor's color + noise so they read as
-    // 'chunks of the floor on the move' rather than distinct objects.
-    this._normalMat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
-    patchLambertNoise(this._normalMat, { scale: 1.8, strength: 0.30, space: "world" });
+    // Cube bodies are all near-black. Type is conveyed by a small emissive
+    // accent (forbidden = red glow, advantage = green glow) so the player
+    // can still tell them apart at a glance.
+    const cubeBlack = 0x05060a;
+    this._normalMat = new THREE.MeshLambertMaterial({ color: cubeBlack });
 
-    // Advantage = green with rune grooves cut darker into the diffuse.
     this._advantageMat = new THREE.MeshLambertMaterial({
-      color: COLORS.advantage,
-      emissive: COLORS.advantageAccent,
-      emissiveIntensity: 0.5,
+      color: cubeBlack,
+      emissive: 0x2ad04a,
+      emissiveIntensity: 0.55,
     });
-    patchScratches(this._advantageMat, { darken: 0.5 });
 
-    // Forbidden = polished onyx. PBR clearcoat gives the wet shine, and
-    // the rune pattern lifts (rather than darkens) so engraved grooves
-    // catch light against the near-black diffuse.
-    this._forbiddenMat = new THREE.MeshPhysicalMaterial({
-      color: 0x0a0a0d,
-      roughness: 0.20,
-      metalness: 0.0,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
+    this._forbiddenMat = new THREE.MeshLambertMaterial({
+      color: cubeBlack,
+      emissive: 0xd22a2a,
+      emissiveIntensity: 0.45,
     });
-    patchScratches(this._forbiddenMat, { darken: 0.0, lift: [0.10, 0.11, 0.14] });
     this._installEnvironment();
     this._buildAbyssBackground();
     this._buildPlayerTrail();
@@ -1242,7 +1239,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=138", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=139", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1442,6 +1439,10 @@ export class Renderer {
     // pivot at the bottom-front edge of the cube (in local coords)
     mesh.position.set(0, 0.5, -0.5);
     pivot.add(mesh);
+    // White outline along the 12 cube edges - comic-book look on top
+    // of the black body.
+    const edges = new THREE.LineSegments(this._cubeEdgesGeom, this._cubeEdgesMat);
+    mesh.add(edges);
     this.scene.add(pivot);
     entry = { pivot, mesh };
     this.cubeMeshes.set(cube.id, entry);
