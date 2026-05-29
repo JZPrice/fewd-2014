@@ -14,10 +14,10 @@ export const STAGES = [
     waves: [
       {
         layout: [
-          "NNNN",
-          "NNNN",
-          "NNAN",
-          "NNNN",
+          "NSNN",
+          "NNSN",
+          "SNAN",
+          "NNSN",
         ],
       },
       {

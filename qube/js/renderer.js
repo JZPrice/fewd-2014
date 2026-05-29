@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=139";
+import { SkeletonUtils } from "three/addons/utils/SkeletonUtils.js";
+import { characterById } from "./characters.js?v=140";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=140";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -182,6 +184,7 @@ export class Renderer {
     this._buildPlayer();
     this._buildMark();
     this._buildBombs();
+    this._preloadMobs(["skeleton"]);
     this._buildMarkGhost();
 
     this.cubeMeshes = new Map();
@@ -1088,6 +1091,72 @@ export class Renderer {
     this._currentAnim = resolved;
   }
 
+  // Preload character GLBs used as mobs. Reuses CHARACTERS metadata (scale,
+  // yOffset, clip names) so a "mob" is just a marching character. Each
+  // mob instance is later cloned from the cached gltf via SkeletonUtils.
+  _preloadMobs(ids) {
+    this._mobModels = this._mobModels ?? {};   // id -> { gltf, charDef }
+    const loader = new GLTFLoader();
+    for (const id of ids) {
+      if (this._mobModels[id]) continue;
+      const def = characterById(id);
+      if (!def) continue;
+      loader.load(def.file, (gltf) => {
+        gltf.scene.traverse((o) => {
+          if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+        });
+        this._mobModels[id] = { gltf, charDef: def };
+      });
+    }
+  }
+
+  // Build a renderer entry for a mob cube: cloned model + mixer + walk/idle
+  // actions. Returns null if the model hasn't finished loading yet (caller
+  // falls back to a box).
+  _buildMobEntry(modelId) {
+    const cached = this._mobModels?.[modelId];
+    if (!cached) return null;
+    const { gltf, charDef } = cached;
+    const model = SkeletonUtils.clone(gltf.scene);
+    model.scale.setScalar(charDef.scale ?? 1);
+    model.position.y = charDef.yOffset ?? 0;
+    model.traverse((o) => {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+    });
+    const mixer = new THREE.AnimationMixer(model);
+    const clipMap = charDef.clips || {};
+    const animSpeed = charDef.animSpeed ?? 1;
+    const clipsByName = {};
+    for (const clip of gltf.animations) clipsByName[clip.name] = clip;
+    const actions = {};
+    for (const canonical of ["idle", "walk", "death"]) {
+      const target = clipMap[canonical];
+      if (!target) continue;
+      const clip = clipsByName[target];
+      if (!clip) continue;
+      const action = mixer.clipAction(clip);
+      action.timeScale = animSpeed;
+      actions[canonical] = action;
+    }
+    // Default state: idle
+    actions.idle?.play();
+    return { model, mixer, actions, current: "idle" };
+  }
+
+  _setMobAction(mobData, name) {
+    if (!mobData || mobData.current === name) return;
+    const prev = mobData.actions[mobData.current];
+    const next = mobData.actions[name];
+    if (!next) return;
+    next.reset();
+    next.enabled = true;
+    next.setEffectiveTimeScale(next.timeScale);
+    next.setEffectiveWeight(1);
+    next.fadeIn(0.12);
+    if (prev) prev.fadeOut(0.12);
+    mobData.current = name;
+  }
+
   _buildMark() {
     // Square gradient shaft + rising particles. The shaft has the cube's
     // footprint and fades to transparent at the top via a fragment-shader
@@ -1239,7 +1308,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=139", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=140", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1429,22 +1498,38 @@ export class Renderer {
   _ensureCubeMesh(cube) {
     let entry = this.cubeMeshes.get(cube.id);
     if (entry) return entry;
+
+    // Mob cube: walking character mesh in place of the box. Wait until
+    // the model has finished loading - the cube simply isn't drawn until
+    // then (preload happens at boot, well before gameplay starts).
+    let mob = null;
+    if (cube.mobModel) {
+      mob = this._buildMobEntry(cube.mobModel);
+      if (!mob) return null;
+    }
+
     const pivot = new THREE.Group();
-    let mat = this._normalMat;
-    if (cube.type === CUBE_TYPE.FORBIDDEN) mat = this._forbiddenMat;
-    else if (cube.type === CUBE_TYPE.ADVANTAGE) mat = this._advantageMat;
-    const mesh = new THREE.Mesh(this._cubeGeom, mat);
-    mesh.castShadow = true;
-    mesh.receiveShadow = false;
-    // pivot at the bottom-front edge of the cube (in local coords)
-    mesh.position.set(0, 0.5, -0.5);
-    pivot.add(mesh);
-    // White outline along the 12 cube edges - comic-book look on top
-    // of the black body.
-    const edges = new THREE.LineSegments(this._cubeEdgesGeom, this._cubeEdgesMat);
-    mesh.add(edges);
-    this.scene.add(pivot);
-    entry = { pivot, mesh };
+    if (mob) {
+      pivot.add(mob.model);
+      this.scene.add(pivot);
+      entry = { pivot, mesh: mob.model, mob };
+    } else {
+      let mat = this._normalMat;
+      if (cube.type === CUBE_TYPE.FORBIDDEN) mat = this._forbiddenMat;
+      else if (cube.type === CUBE_TYPE.ADVANTAGE) mat = this._advantageMat;
+      const mesh = new THREE.Mesh(this._cubeGeom, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = false;
+      // pivot at the bottom-front edge of the cube (in local coords)
+      mesh.position.set(0, 0.5, -0.5);
+      pivot.add(mesh);
+      // White outline along the 12 cube edges - comic-book look on top
+      // of the black body.
+      const edges = new THREE.LineSegments(this._cubeEdgesGeom, this._cubeEdgesMat);
+      mesh.add(edges);
+      this.scene.add(pivot);
+      entry = { pivot, mesh };
+    }
     this.cubeMeshes.set(cube.id, entry);
     return entry;
   }
@@ -1463,9 +1548,14 @@ export class Renderer {
       }
     }
     // Dispose the per-cube material clone we minted for the dissolve
-    // animation, if any.
-    if (entry.mesh.userData.dissolving) {
+    // animation, if any. Skip for mobs (no shared cube material involved).
+    if (!entry.mob && entry.mesh.userData.dissolving) {
       entry.mesh.material.dispose();
+    }
+    // Free the per-mob mixer + clip actions so they don't keep ticking.
+    if (entry.mob) {
+      entry.mob.mixer.stopAllAction();
+      entry.mob.mixer.uncacheRoot(entry.mob.model);
     }
     this.scene.remove(entry.pivot);
     this.cubeMeshes.delete(cubeId);
@@ -1603,7 +1693,49 @@ export class Renderer {
     const seen = new Set();
     for (const cube of cubes) {
       seen.add(cube.id);
-      const { pivot, mesh } = this._ensureCubeMesh(cube);
+      const entry = this._ensureCubeMesh(cube);
+      if (!entry) continue; // mob model still loading
+      const { pivot, mesh, mob } = entry;
+
+      // Mobs use a different visual path: position lerp + walk cycle, no
+      // roll math. Death path: idle/walk fade to invisibility while game
+      // dissolve timer runs.
+      if (mob) {
+        if (cube.dissolving) {
+          const u = cube.dissolveProgress(now);
+          const p = this._toWorld(cube.gx, cube.gz);
+          pivot.position.set(p.x, -u * 0.6, p.z + TILE / 2);
+          pivot.rotation.x = 0;
+          pivot.rotation.y = Math.PI;
+          pivot.scale.setScalar(1 - u * 0.4);
+        } else if (cube.fallingOff) {
+          const u = cube.fallOffProgress(now);
+          const fromP = this._toWorld(cube.gx, cube.gz);
+          pivot.position.set(fromP.x, -u * u * 7, fromP.z + TILE / 2 + u * 2);
+          pivot.rotation.x = u * Math.PI;
+          pivot.rotation.y = Math.PI;
+        } else if (cube.roll) {
+          const u = cube.rollProgress(now);
+          const fromP = this._toWorld(cube.gx, cube.roll.fromZ);
+          const toP   = this._toWorld(cube.gx, cube.roll.toZ);
+          pivot.position.set(
+            fromP.x + (toP.x - fromP.x) * u,
+            0,
+            (fromP.z + (toP.z - fromP.z) * u) + TILE / 2,
+          );
+          pivot.rotation.y = Math.PI;
+          // Walking while the step is in flight; idle through the post-step
+          // pause before the next tick fires.
+          this._setMobAction(mob, u < 1 ? "walk" : "idle");
+        } else {
+          const p = this._toWorld(cube.gx, cube.gz);
+          pivot.position.set(p.x, 0, p.z + TILE / 2);
+          pivot.rotation.y = Math.PI;
+          this._setMobAction(mob, "idle");
+        }
+        continue;
+      }
+
       if (cube.dissolving) {
         // Captured: sinks into the floor, scales down, tints red, fades.
         // First frame: clone the material so color/opacity changes don't
@@ -1860,6 +1992,10 @@ export class Renderer {
     this._animateMarkGhost();
     this._animateBombAuras();
     if (this._mixer) this._mixer.update(dt);
+    // Advance every live mob's animation mixer (walk / idle blends).
+    for (const entry of this.cubeMeshes.values()) {
+      if (entry.mob) entry.mob.mixer.update(dt);
+    }
     this._animateAbyssParticles(dt);
     this._animateGoo(dt);
     this._animateGhosts(dt);
