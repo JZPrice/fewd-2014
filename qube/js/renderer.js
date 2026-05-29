@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
-import { characterById } from "./characters.js?v=142";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=142";
+import { characterById } from "./characters.js?v=143";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=143";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -1134,7 +1134,10 @@ export class Renderer {
       if (!target) continue;
       const clip = clipsByName[target];
       if (!clip) continue;
-      const action = mixer.clipAction(clip);
+      // Fresh per-mob clip + explicit root so the property-binding latches
+      // onto THIS cloned skeleton's bones, not the cached gltf.scene's
+      // (otherwise mobs render frozen in bind/T-pose).
+      const action = mixer.clipAction(clip.clone(), model);
       action.enabled = true;
       action.setEffectiveWeight(0);
       action.timeScale = animSpeed;
@@ -1310,7 +1313,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=142", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=143", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1707,17 +1710,19 @@ export class Renderer {
       // roll math. Death path: idle/walk fade to invisibility while game
       // dissolve timer runs.
       if (mob) {
+        // Mobs are centered in their tile (the +TILE/2 offset on cubes
+        // is for the rolling pivot at the leading edge; mobs don't roll).
         if (cube.dissolving) {
           const u = cube.dissolveProgress(now);
           const p = this._toWorld(cube.gx, cube.gz);
-          pivot.position.set(p.x, -u * 0.6, p.z + TILE / 2);
+          pivot.position.set(p.x, -u * 0.6, p.z);
           pivot.rotation.x = 0;
           pivot.rotation.y = Math.PI;
           pivot.scale.setScalar(1 - u * 0.4);
         } else if (cube.fallingOff) {
           const u = cube.fallOffProgress(now);
           const fromP = this._toWorld(cube.gx, cube.gz);
-          pivot.position.set(fromP.x, -u * u * 7, fromP.z + TILE / 2 + u * 2);
+          pivot.position.set(fromP.x, -u * u * 7, fromP.z + u * 2);
           pivot.rotation.x = u * Math.PI;
           pivot.rotation.y = Math.PI;
         } else if (cube.roll) {
@@ -1727,7 +1732,7 @@ export class Renderer {
           pivot.position.set(
             fromP.x + (toP.x - fromP.x) * u,
             0,
-            (fromP.z + (toP.z - fromP.z) * u) + TILE / 2,
+            fromP.z + (toP.z - fromP.z) * u,
           );
           pivot.rotation.y = Math.PI;
           // Walking while the step is in flight; idle through the post-step
@@ -1735,7 +1740,7 @@ export class Renderer {
           this._setMobAction(mob, u < 1 ? "walk" : "idle");
         } else {
           const p = this._toWorld(cube.gx, cube.gz);
-          pivot.position.set(p.x, 0, p.z + TILE / 2);
+          pivot.position.set(p.x, 0, p.z);
           pivot.rotation.y = Math.PI;
           this._setMobAction(mob, "idle");
         }
