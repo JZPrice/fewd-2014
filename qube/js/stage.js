@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=139";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=139";
+import { Cube } from "./cube.js?v=140";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=140";
 
 export class Stage {
   constructor(stageDef) {
@@ -58,9 +58,20 @@ export class Stage {
         for (let x = 0; x < this.gridW && x < rowStr.length; x++) {
           const ch = rowStr[x];
           if (ch === "." || ch === " ") continue;
-          if (ch !== CUBE_TYPE.NORMAL && ch !== CUBE_TYPE.FORBIDDEN && ch !== CUBE_TYPE.ADVANTAGE) continue;
-          const cube = new Cube(ch, x, spawnD - 1 + i);
+          // Layout chars: N/F/A = plain cubes; S = skeleton mob (captured
+          // like a Normal but renders as a walking character).
+          let type, mobModel = null;
+          if (ch === CUBE_TYPE.NORMAL || ch === CUBE_TYPE.FORBIDDEN || ch === CUBE_TYPE.ADVANTAGE) {
+            type = ch;
+          } else if (ch === "S") {
+            type = CUBE_TYPE.NORMAL;
+            mobModel = "skeleton";
+          } else {
+            continue;
+          }
+          const cube = new Cube(type, x, spawnD - 1 + i);
           cube.waveIndex = w;
+          cube.mobModel = mobModel;
           this.cubes.push(cube);
         }
       }
