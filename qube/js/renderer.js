@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
-import { characterById } from "./characters.js?v=141";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=141";
+import { characterById } from "./characters.js?v=142";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=142";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -1135,11 +1135,16 @@ export class Renderer {
       const clip = clipsByName[target];
       if (!clip) continue;
       const action = mixer.clipAction(clip);
+      action.enabled = true;
+      action.setEffectiveWeight(0);
       action.timeScale = animSpeed;
+      // Every action needs play() so the mixer ticks it; weights are
+      // what actually toggles visibility. Same pattern as the player.
+      action.play();
       actions[canonical] = action;
     }
-    // Default state: idle
-    actions.idle?.play();
+    // Default state: full-weight idle
+    if (actions.idle) actions.idle.setEffectiveWeight(1);
     return { model, mixer, actions, current: "idle" };
   }
 
@@ -1148,10 +1153,7 @@ export class Renderer {
     const prev = mobData.actions[mobData.current];
     const next = mobData.actions[name];
     if (!next) return;
-    next.reset();
-    next.enabled = true;
     next.setEffectiveTimeScale(next.timeScale);
-    next.setEffectiveWeight(1);
     next.fadeIn(0.12);
     if (prev) prev.fadeOut(0.12);
     mobData.current = name;
@@ -1308,7 +1310,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=141", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=142", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1387,6 +1389,10 @@ export class Renderer {
     for (const id of cubeIds) {
       const entry = this.cubeMeshes.get(id);
       if (!entry) continue;
+      // Skip mobs - their mesh is a Group of skinned children, not a
+      // single Mesh, so the "clone material + tint red" trick doesn't
+      // apply. They still dissolve normally on capture.
+      if (entry.mob) continue;
       // Don't double-clone if this cube is already being flashed; reset
       // the timer instead.
       const existing = this._bombAuras.find(a => a.mesh === entry.mesh);
