@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=140";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=140";
+import { Cube } from "./cube.js?v=141";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=141";
 
 export class Stage {
   constructor(stageDef) {
