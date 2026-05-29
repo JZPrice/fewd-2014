@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
-import { characterById } from "./characters.js?v=143";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=143";
+import { characterById } from "./characters.js?v=144";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=144";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -1091,38 +1090,48 @@ export class Renderer {
     this._currentAnim = resolved;
   }
 
-  // Preload character GLBs used as mobs. Reuses CHARACTERS metadata (scale,
-  // yOffset, clip names) so a "mob" is just a marching character. Each
-  // mob instance is later cloned from the cached gltf via SkeletonUtils.
+  // Preload character GLBs used as mobs. Fetches the raw bytes once, then
+  // parses a POOL of independent gltf instances (each with its own scene,
+  // skeleton, and animation clips) at boot. Each mob pops one instance
+  // from the queue - no SkeletonUtils.clone, no shared-binding ambiguity,
+  // no chance of mobs rendering in T-pose because the clip's tracks
+  // resolved to the wrong skeleton.
   _preloadMobs(ids) {
-    this._mobModels = this._mobModels ?? {};   // id -> { gltf, charDef }
-    const loader = new GLTFLoader();
+    this._mobPool = this._mobPool ?? {};    // id -> { charDef, queue: [gltf, ...] }
     for (const id of ids) {
-      if (this._mobModels[id]) continue;
+      if (this._mobPool[id]) continue;
       const def = characterById(id);
       if (!def) continue;
-      loader.load(def.file, (gltf) => {
-        gltf.scene.traverse((o) => {
-          if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
-        });
-        this._mobModels[id] = { gltf, charDef: def };
+      this._mobPool[id] = { charDef: def, queue: [] };
+      fetch(def.file).then(r => r.arrayBuffer()).then(buf => {
+        const loader = new GLTFLoader();
+        // Generous pool size; typical waves use <8 mobs.
+        const POOL_SIZE = 24;
+        for (let i = 0; i < POOL_SIZE; i++) {
+          // GLTFLoader.parse reads the ArrayBuffer without modifying it,
+          // so re-using the same buf for every parse is safe.
+          loader.parse(buf, "", (gltf) => {
+            gltf.scene.traverse((o) => {
+              if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+            });
+            this._mobPool[id].queue.push(gltf);
+          }, (err) => console.error("mob preload parse error", err));
+        }
       });
     }
   }
 
-  // Build a renderer entry for a mob cube: cloned model + mixer + walk/idle
-  // actions. Returns null if the model hasn't finished loading yet (caller
-  // falls back to a box).
+  // Build a renderer entry for a mob cube: pop a fresh gltf instance from
+  // the pool, hook up the mixer + walk/idle/death actions. Returns null
+  // until at least one instance has finished parsing.
   _buildMobEntry(modelId) {
-    const cached = this._mobModels?.[modelId];
-    if (!cached) return null;
-    const { gltf, charDef } = cached;
-    const model = SkeletonUtils.clone(gltf.scene);
+    const cached = this._mobPool?.[modelId];
+    if (!cached || cached.queue.length === 0) return null;
+    const gltf = cached.queue.shift();
+    const charDef = cached.charDef;
+    const model = gltf.scene;
     model.scale.setScalar(charDef.scale ?? 1);
     model.position.y = charDef.yOffset ?? 0;
-    model.traverse((o) => {
-      if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
-    });
     const mixer = new THREE.AnimationMixer(model);
     const clipMap = charDef.clips || {};
     const animSpeed = charDef.animSpeed ?? 1;
@@ -1134,10 +1143,7 @@ export class Renderer {
       if (!target) continue;
       const clip = clipsByName[target];
       if (!clip) continue;
-      // Fresh per-mob clip + explicit root so the property-binding latches
-      // onto THIS cloned skeleton's bones, not the cached gltf.scene's
-      // (otherwise mobs render frozen in bind/T-pose).
-      const action = mixer.clipAction(clip.clone(), model);
+      const action = mixer.clipAction(clip);
       action.enabled = true;
       action.setEffectiveWeight(0);
       action.timeScale = animSpeed;
@@ -1313,7 +1319,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=143", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=144", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
