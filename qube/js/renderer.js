@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { characterById } from "./characters.js?v=146";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=146";
+import { characterById } from "./characters.js?v=147";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=147";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -193,27 +193,22 @@ export class Renderer {
     this._cubeEdgesGeom = new THREE.EdgesGeometry(this._cubeGeom);
     this._cubeEdgesMat = new THREE.LineBasicMaterial({ color: 0x202028 });
 
-    // White marble cube bodies. The noise patch adds subtle gray veining
-    // for the marble look. Type is conveyed by a faint emissive accent
-    // (forbidden = red glow, advantage = green glow) so the player can
-    // still tell them apart at a glance against the white.
-    const marbleWhite = 0xf2efe6;
-    this._normalMat = new THREE.MeshLambertMaterial({ color: marbleWhite });
-    patchLambertNoise(this._normalMat, { scale: 2.2, strength: 0.18, space: "world" });
+    // OG cube look: normal cubes match the floor (chunks of stage on the
+    // move); advantage = green; forbidden = dark with red accent.
+    this._normalMat = new THREE.MeshLambertMaterial({ color: COLORS.floor });
+    patchLambertNoise(this._normalMat, { scale: 1.8, strength: 0.30, space: "world" });
 
     this._advantageMat = new THREE.MeshLambertMaterial({
-      color: marbleWhite,
-      emissive: 0x2ad04a,
-      emissiveIntensity: 0.30,
+      color: COLORS.advantage,
+      emissive: COLORS.advantageAccent,
+      emissiveIntensity: 0.5,
     });
-    patchLambertNoise(this._advantageMat, { scale: 2.2, strength: 0.18, space: "world" });
 
     this._forbiddenMat = new THREE.MeshLambertMaterial({
-      color: marbleWhite,
-      emissive: 0xd22a2a,
-      emissiveIntensity: 0.28,
+      color: COLORS.forbidden,
+      emissive: COLORS.forbiddenAccent,
+      emissiveIntensity: 0.35,
     });
-    patchLambertNoise(this._forbiddenMat, { scale: 2.2, strength: 0.18, space: "world" });
     this._installEnvironment();
     this._buildAbyssBackground();
     this._buildPlayerTrail();
@@ -1094,63 +1089,41 @@ export class Renderer {
     this._currentAnim = resolved;
   }
 
-  // Preload character GLBs used as mobs. Loads a POOL of independent gltf
-  // instances by calling loader.load() N times - the same proven path
-  // the player uses. Browser HTTP cache makes this 1 network fetch + N
-  // parses. Each mob pops a fresh gltf from the queue (its own scene,
-  // skeleton, and animation clips), so animations bind cleanly.
-  _preloadMobs(ids) {
-    this._mobPool = this._mobPool ?? {};    // id -> { charDef, queue: [gltf, ...] }
-    for (const id of ids) {
-      if (this._mobPool[id]) continue;
-      const def = characterById(id);
-      if (!def) continue;
-      this._mobPool[id] = { charDef: def, queue: [] };
-      // Generous pool size; typical waves use <8 mobs.
-      const POOL_SIZE = 24;
-      for (let i = 0; i < POOL_SIZE; i++) {
-        new GLTFLoader().load(def.file, (gltf) => {
-          gltf.scene.traverse((o) => {
-            if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
-          });
-          this._mobPool[id].queue.push(gltf);
-        }, undefined, (err) => console.error("mob preload load error", err));
-      }
-    }
+  // Mob loading - each cube gets its OWN fresh GLTFLoader.load() call.
+  // The browser HTTP-caches the GLB so this is one fetch + N parses.
+  // Same proven path as charPreview / setCharacter, which animates
+  // correctly. Pool / cloning approaches kept losing the animation
+  // bindings somewhere; per-cube fresh load is unambiguous.
+  _preloadMobs(/* ids */) {
+    // No actual preload; loads happen lazily on first _ensureCubeMesh
+    // call for each mob cube. Method kept so existing call site is happy.
   }
 
-  // Build a renderer entry for a mob cube: pop a fresh gltf instance from
-  // the pool, hook up the mixer + walk/idle/death actions. Returns null
-  // until at least one instance has finished parsing.
-  _buildMobEntry(modelId) {
-    const cached = this._mobPool?.[modelId];
-    if (!cached || cached.queue.length === 0) return null;
-    const gltf = cached.queue.shift();
-    const charDef = cached.charDef;
+  // Build a mob renderer entry from a freshly-loaded gltf. Mirrors
+  // charPreview's setCharacter flow.
+  _makeMobFromGltf(gltf, charDef) {
     const model = gltf.scene;
+    model.traverse((o) => {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+    });
     model.scale.setScalar(charDef.scale ?? 1);
     model.position.y = charDef.yOffset ?? 0;
     const mixer = new THREE.AnimationMixer(model);
     const clipMap = charDef.clips || {};
     const animSpeed = charDef.animSpeed ?? 1;
-    const clipsByName = {};
-    for (const clip of gltf.animations) clipsByName[clip.name] = clip;
     const actions = {};
     for (const canonical of ["idle", "walk", "death"]) {
       const target = clipMap[canonical];
       if (!target) continue;
-      const clip = clipsByName[target];
+      const clip = gltf.animations.find(c => c.name === target);
       if (!clip) continue;
       const action = mixer.clipAction(clip);
       action.enabled = true;
       action.setEffectiveWeight(0);
       action.timeScale = animSpeed;
-      // Every action needs play() so the mixer ticks it; weights are
-      // what actually toggles visibility. Same pattern as the player.
       action.play();
       actions[canonical] = action;
     }
-    // Default state: full-weight idle
     if (actions.idle) actions.idle.setEffectiveWeight(1);
     return { model, mixer, actions, current: "idle" };
   }
@@ -1317,7 +1290,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=146", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=147", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1512,37 +1485,42 @@ export class Renderer {
     let entry = this.cubeMeshes.get(cube.id);
     if (entry) return entry;
 
-    // Mob cube: walking character mesh in place of the box. Wait until
-    // the model has finished loading - the cube simply isn't drawn until
-    // then (preload happens at boot, well before gameplay starts).
-    let mob = null;
+    // Mob cube: lazy-load a fresh GLB for THIS cube. Returns null until
+    // the load resolves; on resolve we insert the entry into cubeMeshes
+    // and the next syncCubes call picks it up.
     if (cube.mobModel) {
-      mob = this._buildMobEntry(cube.mobModel);
-      if (!mob) return null;
+      this._pendingMobs ??= new Set();
+      if (this._pendingMobs.has(cube.id)) return null;
+      const def = characterById(cube.mobModel);
+      if (!def) return null;
+      this._pendingMobs.add(cube.id);
+      new GLTFLoader().load(def.file, (gltf) => {
+        this._pendingMobs.delete(cube.id);
+        if (cube.dead) return; // captured/falling-off mid-load
+        const mob = this._makeMobFromGltf(gltf, def);
+        const pivot = new THREE.Group();
+        pivot.add(mob.model);
+        this.scene.add(pivot);
+        this.cubeMeshes.set(cube.id, { pivot, mesh: mob.model, mob });
+      }, undefined, (err) => {
+        this._pendingMobs.delete(cube.id);
+        console.error("mob load failed:", err);
+      });
+      return null;
     }
 
     const pivot = new THREE.Group();
-    if (mob) {
-      pivot.add(mob.model);
-      this.scene.add(pivot);
-      entry = { pivot, mesh: mob.model, mob };
-    } else {
-      let mat = this._normalMat;
-      if (cube.type === CUBE_TYPE.FORBIDDEN) mat = this._forbiddenMat;
-      else if (cube.type === CUBE_TYPE.ADVANTAGE) mat = this._advantageMat;
-      const mesh = new THREE.Mesh(this._cubeGeom, mat);
-      mesh.castShadow = true;
-      mesh.receiveShadow = false;
-      // pivot at the bottom-front edge of the cube (in local coords)
-      mesh.position.set(0, 0.5, -0.5);
-      pivot.add(mesh);
-      // White outline along the 12 cube edges - comic-book look on top
-      // of the black body.
-      const edges = new THREE.LineSegments(this._cubeEdgesGeom, this._cubeEdgesMat);
-      mesh.add(edges);
-      this.scene.add(pivot);
-      entry = { pivot, mesh };
-    }
+    let mat = this._normalMat;
+    if (cube.type === CUBE_TYPE.FORBIDDEN) mat = this._forbiddenMat;
+    else if (cube.type === CUBE_TYPE.ADVANTAGE) mat = this._advantageMat;
+    const mesh = new THREE.Mesh(this._cubeGeom, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = false;
+    // pivot at the bottom-front edge of the cube (in local coords)
+    mesh.position.set(0, 0.5, -0.5);
+    pivot.add(mesh);
+    this.scene.add(pivot);
+    entry = { pivot, mesh };
     this.cubeMeshes.set(cube.id, entry);
     return entry;
   }
