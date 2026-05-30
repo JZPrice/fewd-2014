@@ -36,6 +36,22 @@ export const CHARACTERS = [
   // Smaller stride than the heroes -> bump animSpeed so the walk/run
   // cycles match the ground he's actually covering.
   { id: "skeleton", name: "Skeleton", file: "assets/characters/skeleton.glb", ...KAYKIT, yOffset: 0, animSpeed: 1.6 },
+  // Quaternius ghost (CC0 via poly.pizza). Clip names use the model's
+  // armature-prefixed format. Hovers via yOffset so it sits above the
+  // tile rather than on it - mob path adds slight Y-bob in renderer.
+  {
+    id: "ghost",
+    name: "Ghost",
+    file: "assets/characters/ghost.glb",
+    scale: 0.30,
+    yOffset: 0.35,
+    clips: {
+      idle:  "CharacterArmature|Flying_Idle",
+      walk:  "CharacterArmature|Fast_Flying",
+      run:   "CharacterArmature|Fast_Flying",
+      death: "CharacterArmature|Death",
+    },
+  },
 ];
 
 export function characterById(id) {
