@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { characterById } from "./characters.js?v=144";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=144";
+import { characterById } from "./characters.js?v=145";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=145";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -191,25 +191,29 @@ export class Renderer {
     // White edge outline shared by every cube mesh. EdgesGeometry only
     // emits lines where adjacent faces are non-coplanar -> the 12 box edges.
     this._cubeEdgesGeom = new THREE.EdgesGeometry(this._cubeGeom);
-    this._cubeEdgesMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+    this._cubeEdgesMat = new THREE.LineBasicMaterial({ color: 0x202028 });
 
-    // Cube bodies are all near-black. Type is conveyed by a small emissive
-    // accent (forbidden = red glow, advantage = green glow) so the player
-    // can still tell them apart at a glance.
-    const cubeBlack = 0x05060a;
-    this._normalMat = new THREE.MeshLambertMaterial({ color: cubeBlack });
+    // White marble cube bodies. The noise patch adds subtle gray veining
+    // for the marble look. Type is conveyed by a faint emissive accent
+    // (forbidden = red glow, advantage = green glow) so the player can
+    // still tell them apart at a glance against the white.
+    const marbleWhite = 0xf2efe6;
+    this._normalMat = new THREE.MeshLambertMaterial({ color: marbleWhite });
+    patchLambertNoise(this._normalMat, { scale: 2.2, strength: 0.18, space: "world" });
 
     this._advantageMat = new THREE.MeshLambertMaterial({
-      color: cubeBlack,
+      color: marbleWhite,
       emissive: 0x2ad04a,
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 0.30,
     });
+    patchLambertNoise(this._advantageMat, { scale: 2.2, strength: 0.18, space: "world" });
 
     this._forbiddenMat = new THREE.MeshLambertMaterial({
-      color: cubeBlack,
+      color: marbleWhite,
       emissive: 0xd22a2a,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.28,
     });
+    patchLambertNoise(this._forbiddenMat, { scale: 2.2, strength: 0.18, space: "world" });
     this._installEnvironment();
     this._buildAbyssBackground();
     this._buildPlayerTrail();
@@ -1090,12 +1094,11 @@ export class Renderer {
     this._currentAnim = resolved;
   }
 
-  // Preload character GLBs used as mobs. Fetches the raw bytes once, then
-  // parses a POOL of independent gltf instances (each with its own scene,
-  // skeleton, and animation clips) at boot. Each mob pops one instance
-  // from the queue - no SkeletonUtils.clone, no shared-binding ambiguity,
-  // no chance of mobs rendering in T-pose because the clip's tracks
-  // resolved to the wrong skeleton.
+  // Preload character GLBs used as mobs. Loads a POOL of independent gltf
+  // instances by calling loader.load() N times - the same proven path
+  // the player uses. Browser HTTP cache makes this 1 network fetch + N
+  // parses. Each mob pops a fresh gltf from the queue (its own scene,
+  // skeleton, and animation clips), so animations bind cleanly.
   _preloadMobs(ids) {
     this._mobPool = this._mobPool ?? {};    // id -> { charDef, queue: [gltf, ...] }
     for (const id of ids) {
@@ -1103,21 +1106,16 @@ export class Renderer {
       const def = characterById(id);
       if (!def) continue;
       this._mobPool[id] = { charDef: def, queue: [] };
-      fetch(def.file).then(r => r.arrayBuffer()).then(buf => {
-        const loader = new GLTFLoader();
-        // Generous pool size; typical waves use <8 mobs.
-        const POOL_SIZE = 24;
-        for (let i = 0; i < POOL_SIZE; i++) {
-          // GLTFLoader.parse reads the ArrayBuffer without modifying it,
-          // so re-using the same buf for every parse is safe.
-          loader.parse(buf, "", (gltf) => {
-            gltf.scene.traverse((o) => {
-              if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
-            });
-            this._mobPool[id].queue.push(gltf);
-          }, (err) => console.error("mob preload parse error", err));
-        }
-      });
+      // Generous pool size; typical waves use <8 mobs.
+      const POOL_SIZE = 24;
+      for (let i = 0; i < POOL_SIZE; i++) {
+        new GLTFLoader().load(def.file, (gltf) => {
+          gltf.scene.traverse((o) => {
+            if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+          });
+          this._mobPool[id].queue.push(gltf);
+        }, undefined, (err) => console.error("mob preload load error", err));
+      }
     }
   }
 
@@ -1319,7 +1317,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=144", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=145", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
