@@ -52,6 +52,65 @@ export const CHARACTERS = [
       death: "CharacterArmature|Death",
     },
   },
+  // Alternate ghost variant from Quaternius - same clip names.
+  {
+    id: "phantom",
+    name: "Phantom",
+    file: "assets/characters/phantom.glb",
+    scale: 0.30,
+    yOffset: 0.35,
+    clips: {
+      idle:  "CharacterArmature|Flying_Idle",
+      walk:  "CharacterArmature|Fast_Flying",
+      run:   "CharacterArmature|Fast_Flying",
+      death: "CharacterArmature|Death",
+    },
+  },
+  // Quaternius zombie - the CharacterArmature-prefixed clips work the
+  // same way as the ghost/phantom; the raw-named duplicates are ignored.
+  {
+    id: "zombie",
+    name: "Zombie",
+    file: "assets/characters/zombie.glb",
+    scale: 0.30,
+    yOffset: 0,
+    clips: {
+      idle:  "CharacterArmature|Idle",
+      walk:  "CharacterArmature|Walk",
+      run:   "CharacterArmature|Run",
+      death: "CharacterArmature|Death",
+    },
+  },
+  // Quaternius bat - uses BatArmature prefix. Flies, so canonical
+  // walk/run map to the same flying loop.
+  {
+    id: "bat",
+    name: "Bat",
+    file: "assets/characters/bat.glb",
+    scale: 0.45,
+    yOffset: 0.45,
+    clips: {
+      idle:  "BatArmature|Bat_Flying",
+      walk:  "BatArmature|Bat_Flying",
+      run:   "BatArmature|Bat_Flying",
+      death: "BatArmature|Bat_Death",
+    },
+  },
+  // Quaternius specter - EnemyArmature-prefixed clip names (same
+  // convention as the old goblin).
+  {
+    id: "specter",
+    name: "Specter",
+    file: "assets/characters/specter.glb",
+    scale: 0.30,
+    yOffset: 0,
+    clips: {
+      idle:  "EnemyArmature|EnemyArmature|EnemyArmature|Idle",
+      walk:  "EnemyArmature|EnemyArmature|EnemyArmature|Walk",
+      run:   "EnemyArmature|EnemyArmature|EnemyArmature|Run",
+      death: "EnemyArmature|EnemyArmature|EnemyArmature|Death",
+    },
+  },
 ];
 
 export function characterById(id) {
