@@ -113,10 +113,54 @@ html, body {
 
 .controls {
   margin: 12px 0;
-  line-height: 2;
+  line-height: 1.55;
   color: #c8d0e8;
   font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
+.controls p { margin: 0; }
+.ctl-goal {
+  font-weight: 600;
+  color: #ffd24c;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ctl-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+.ctl-cubes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #b6c0dc;
+}
+.ctl-cubes li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cube-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+.cube-swatch.cube-normal    { background: #b8c0d4; }
+.cube-swatch.cube-forbidden { background: #000;     border-color: #4a0e0e; }
+.cube-swatch.cube-advantage { background: #4cd97a; border-color: #2a8b48; }
 
 .char-select {
   margin: 4px 0 22px;

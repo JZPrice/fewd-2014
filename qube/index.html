@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@400;700;800&family=Inter:wght@400;500;600&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=158" />
+  <link rel="stylesheet" href="css/style.css?v=159" />
   <script type="importmap">
     {
       "imports": {
@@ -27,7 +27,7 @@
 <body>
   <canvas id="stage"></canvas>
 
-  <div id="version-stamp">v158 · 2026-05-30 04:15 UTC</div>
+  <div id="version-stamp">v159 · 2026-05-30 04:45 UTC</div>
 
   <button id="pause-btn" aria-label="pause">
     <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -101,16 +101,29 @@
     </div>
 
     <div class="controls kbd-only">
-      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</p>
-      <p><kbd>J</kbd> mark &nbsp; <kbd>K</kbd> fire &nbsp; <kbd>L</kbd> detonate</p>
-      <p>fire on a green cube places a bomb</p>
-      <p>detonate blasts all bombs (3×3 each) at once</p>
+      <p class="ctl-goal">clear every cube before it reaches you</p>
+      <div class="ctl-controls">
+        <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</p>
+        <p><kbd>J</kbd> MARK a tile &nbsp;·&nbsp; <kbd>K</kbd> FIRE &nbsp;·&nbsp; <kbd>L</kbd> DETONATE</p>
+      </div>
+      <ul class="ctl-cubes">
+        <li><span class="cube-swatch cube-normal"></span>capture to clear</li>
+        <li><span class="cube-swatch cube-forbidden"></span>forbidden — DON'T capture</li>
+        <li><span class="cube-swatch cube-advantage"></span>FIRE on green to drop a bomb</li>
+      </ul>
     </div>
     <div class="controls touch-only">
-      <p>drag the joystick to move</p>
-      <p>MARK then FIRE to capture</p>
-      <p>fire on a green cube places a bomb</p>
-      <p>BOMB detonates all bombs (3×3 each) at once</p>
+      <p class="ctl-goal">clear every cube before it reaches you</p>
+      <div class="ctl-controls">
+        <p>drag the joystick to move</p>
+        <p>MARK a tile, then FIRE to capture what's on it</p>
+        <p>BOMB detonates every bomb at once (3×3 each)</p>
+      </div>
+      <ul class="ctl-cubes">
+        <li><span class="cube-swatch cube-normal"></span>capture to clear</li>
+        <li><span class="cube-swatch cube-forbidden"></span>forbidden — DON'T capture</li>
+        <li><span class="cube-swatch cube-advantage"></span>FIRE on green to drop a bomb</li>
+      </ul>
     </div>
     <p class="prompt kbd-only">press <kbd>Enter</kbd> to start</p>
     <p class="prompt touch-only">tap to start</p>
@@ -123,6 +136,6 @@
     <p class="prompt touch-only">tap to restart</p>
   </div>
 
-  <script type="module" src="js/main.js?v=158"></script>
+  <script type="module" src="js/main.js?v=159"></script>
 </body>
 </html>
