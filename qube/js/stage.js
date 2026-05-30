@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=154";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=154";
+import { Cube } from "./cube.js?v=155";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=155";
 
 // Which character GLB the `S` layout char spawns. Toggleable via the
 // debug panel; persists across reloads in localStorage.
@@ -12,6 +12,25 @@ export function setMobModel(id) {
   try { localStorage.setItem("qube.mobModel", id); } catch (_) {}
 }
 export function getMobModel() { return MOB_MODEL; }
+
+// How densely to populate the wave with mob-rendered cubes:
+//   "none" -> ignore S, render every normal cube as a plain box
+//   "some" -> S spawns as mob, N stays as cube (the layout's intent)
+//   "all"  -> every NORMAL cube renders as a mob (F/A unchanged)
+const MOB_DENSITIES = ["none", "some", "all"];
+let MOB_DENSITY = (() => {
+  try {
+    const v = localStorage.getItem("qube.mobDensity");
+    return MOB_DENSITIES.includes(v) ? v : "some";
+  } catch (_) { return "some"; }
+})();
+export function setMobDensity(v) {
+  if (!MOB_DENSITIES.includes(v)) return;
+  MOB_DENSITY = v;
+  try { localStorage.setItem("qube.mobDensity", v); } catch (_) {}
+}
+export function getMobDensity() { return MOB_DENSITY; }
+export function getMobDensities() { return MOB_DENSITIES.slice(); }
 
 export class Stage {
   constructor(stageDef) {
@@ -70,14 +89,18 @@ export class Stage {
         for (let x = 0; x < this.gridW && x < rowStr.length; x++) {
           const ch = rowStr[x];
           if (ch === "." || ch === " ") continue;
-          // Layout chars: N/F/A = plain cubes; S = skeleton mob (captured
-          // like a Normal but renders as a walking character).
+          // Layout chars: N/F/A = plain cubes; S = mob (captured like
+          // a Normal but renders as a walking character). MOB_DENSITY
+          // can override: "none" demotes S to N, "all" promotes N to S.
           let type, mobModel = null;
-          if (ch === CUBE_TYPE.NORMAL || ch === CUBE_TYPE.FORBIDDEN || ch === CUBE_TYPE.ADVANTAGE) {
+          if (ch === CUBE_TYPE.NORMAL) {
+            type = CUBE_TYPE.NORMAL;
+            if (MOB_DENSITY === "all") mobModel = MOB_MODEL;
+          } else if (ch === CUBE_TYPE.FORBIDDEN || ch === CUBE_TYPE.ADVANTAGE) {
             type = ch;
           } else if (ch === "S") {
             type = CUBE_TYPE.NORMAL;
-            mobModel = MOB_MODEL;
+            if (MOB_DENSITY !== "none") mobModel = MOB_MODEL;
           } else {
             continue;
           }
