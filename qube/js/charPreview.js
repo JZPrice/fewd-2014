@@ -66,7 +66,13 @@ export class CharacterPreview {
       const baseScale = charDef.scale ?? 1;
       const previewScale = baseScale * 1.45;
       model.scale.setScalar(previewScale);
-      model.position.y = (charDef.yOffset ?? 0) * 1.45;
+      // Auto-center the model on the camera's lookAt height (y = 1.0)
+      // via Box3 so per-character yOffset quirks (skeleton's pivot is
+      // higher than the heroes') don't push feet/head out of frame.
+      model.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.y += 1.0 - center.y;
 
       this.pivot.add(model);
       this._loadedModel = model;

@@ -36,22 +36,6 @@ export const CHARACTERS = [
   // Smaller stride than the heroes -> bump animSpeed so the walk/run
   // cycles match the ground he's actually covering.
   { id: "skeleton", name: "Skeleton", file: "assets/characters/skeleton.glb", ...KAYKIT, yOffset: 0, animSpeed: 1.6 },
-  // Quaternius goblin (CC0 via poly.pizza). Smaller stature than the
-  // KayKit heroes - scale is tuned so the goblin reads as ~2/3 hero
-  // height. Clip names use the model's piped armature-prefixed format.
-  {
-    id: "goblin",
-    name: "Goblin",
-    file: "assets/characters/goblin.glb",
-    scale: 0.40,
-    yOffset: 0,
-    clips: {
-      idle:  "EnemyArmature|EnemyArmature|EnemyArmature|Idle",
-      walk:  "EnemyArmature|EnemyArmature|EnemyArmature|Walk",
-      run:   "EnemyArmature|EnemyArmature|EnemyArmature|Run",
-      death: "EnemyArmature|EnemyArmature|EnemyArmature|Death",
-    },
-  },
 ];
 
 export function characterById(id) {
