@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { characterById } from "./characters.js?v=156";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=156";
+import { characterById } from "./characters.js?v=157";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=157";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -1105,10 +1105,18 @@ export class Renderer {
     const model = gltf.scene;
     model.traverse((o) => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
-      // SkinnedMesh authored bounds don't track bone motion - disabling
-      // frustum culling avoids any chance of the mesh being culled even
-      // when on-screen.
-      if (o.isSkinnedMesh) o.frustumCulled = false;
+      if (o.isSkinnedMesh) {
+        // SkinnedMesh authored bounds don't track bone motion - disabling
+        // frustum culling avoids the main camera culling the mesh when
+        // its silhouette swings past the bind-pose bounds.
+        o.frustumCulled = false;
+        // The shadow pass culls against the rest-pose bounding sphere
+        // too; replace it with a generous one so animated arms / wings
+        // don't make the shadow vanish.
+        if (o.geometry) {
+          o.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 6);
+        }
+      }
     });
     model.scale.setScalar(charDef.scale ?? 1);
     model.position.y = charDef.yOffset ?? 0;
@@ -1317,7 +1325,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=156", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=157", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
