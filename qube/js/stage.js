@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=149";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=149";
+import { Cube } from "./cube.js?v=150";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=150";
 
 export class Stage {
   constructor(stageDef) {
@@ -65,7 +65,7 @@ export class Stage {
             type = ch;
           } else if (ch === "S") {
             type = CUBE_TYPE.NORMAL;
-            mobModel = "skeleton";
+            mobModel = "barbarian";
           } else {
             continue;
           }

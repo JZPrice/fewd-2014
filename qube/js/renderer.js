@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { characterById } from "./characters.js?v=149";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=149";
+import { characterById } from "./characters.js?v=150";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=150";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -1111,12 +1111,23 @@ export class Renderer {
     const mixer = new THREE.AnimationMixer(model);
     const clipMap = charDef.clips || {};
     const animSpeed = charDef.animSpeed ?? 1;
+    // Diagnostics: log what we got vs what we asked for so we can tell
+    // (in browser console) whether T-pose is missing clips or broken
+    // bindings.
+    console.log(
+      `[mob ${charDef.id}] gltf clips:`,
+      gltf.animations.map(c => c.name),
+      "wanted:", clipMap,
+    );
     const actions = {};
     for (const canonical of ["idle", "walk", "death"]) {
       const target = clipMap[canonical];
       if (!target) continue;
       const clip = gltf.animations.find(c => c.name === target);
-      if (!clip) continue;
+      if (!clip) {
+        console.warn(`[mob ${charDef.id}] missing clip ${canonical}:"${target}"`);
+        continue;
+      }
       const action = mixer.clipAction(clip);
       action.enabled = true;
       action.setEffectiveWeight(0);
@@ -1125,6 +1136,7 @@ export class Renderer {
       actions[canonical] = action;
     }
     if (actions.idle) actions.idle.setEffectiveWeight(1);
+    else console.warn(`[mob ${charDef.id}] NO IDLE ACTION — will be T-posed`);
     return { model, mixer, actions, current: "idle" };
   }
 
@@ -1290,7 +1302,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=149", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=150", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
