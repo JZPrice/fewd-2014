@@ -60,15 +60,29 @@ export class CharacterPreview {
       const model = gltf.scene;
       model.traverse((o) => { if (o.isMesh) o.castShadow = false; });
 
-      // Same per-character scale as the playfield, scaled up so the
-      // preview frames the character cleanly without clipping arms/legs
-      // at the canvas edges.
-      const baseScale = charDef.scale ?? 1;
-      const previewScale = baseScale * 1.45;
-      model.scale.setScalar(previewScale);
-      // Auto-center the model on the camera's lookAt height (y = 1.0)
-      // via Box3 so per-character yOffset quirks (skeleton's pivot is
-      // higher than the heroes') don't push feet/head out of frame.
+      // Auto-fit: measure the model's actual bounding box and scale it
+      // to fill the camera frustum at z=0 with a margin. Then center
+      // vertically on the camera's lookAt height (y=1.0). Works for any
+      // character regardless of authored scale, yOffset, or pivot.
+      model.scale.setScalar(1);
+      model.updateMatrixWorld(true);
+      const probe = new THREE.Box3().setFromObject(model);
+      const size = probe.getSize(new THREE.Vector3());
+
+      const distance = this.camera.position.z; // model sits at z=0
+      const fovRad = (this.camera.fov * Math.PI) / 180;
+      const visibleH = 2 * Math.tan(fovRad / 2) * distance;
+      const visibleW = visibleH * (this.camera.aspect || 1);
+
+      // 20% padding on both axes; pick the tighter axis so neither
+      // dimension overflows.
+      const PAD = 0.80;
+      const fit = Math.min(
+        (visibleW * PAD) / Math.max(0.001, size.x),
+        (visibleH * PAD) / Math.max(0.001, size.y),
+      );
+      model.scale.setScalar(fit);
+
       model.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
