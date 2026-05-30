@@ -3,9 +3,9 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
-import { STAGES } from "./stages.js?v=158";
-import { getMobModel, setMobModel, getMobDensity, setMobDensity, getMobDensities } from "./stage.js?v=158";
-import { CHARACTERS } from "./characters.js?v=158";
+import { STAGES } from "./stages.js?v=159";
+import { getMobModel, setMobModel, getMobDensity, setMobDensity, getMobDensities } from "./stage.js?v=159";
+import { CHARACTERS } from "./characters.js?v=159";
 
 export class Debugger {
   constructor(game) {
