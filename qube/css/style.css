@@ -126,8 +126,8 @@ html, body {
   gap: 8px;
 }
 #char-preview-canvas {
-  width: 220px;
-  height: 260px;
+  width: 280px;
+  height: 300px;
   display: block;
   background: transparent;
   /* subtle radial vignette behind the character to anchor it visually */

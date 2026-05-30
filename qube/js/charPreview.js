@@ -61,11 +61,12 @@ export class CharacterPreview {
       model.traverse((o) => { if (o.isMesh) o.castShadow = false; });
 
       // Same per-character scale as the playfield, scaled up so the
-      // preview frames the character cleanly.
+      // preview frames the character cleanly without clipping arms/legs
+      // at the canvas edges.
       const baseScale = charDef.scale ?? 1;
-      const previewScale = baseScale * 1.85;
+      const previewScale = baseScale * 1.45;
       model.scale.setScalar(previewScale);
-      model.position.y = (charDef.yOffset ?? 0) * 1.85;
+      model.position.y = (charDef.yOffset ?? 0) * 1.45;
 
       this.pivot.add(model);
       this._loadedModel = model;
