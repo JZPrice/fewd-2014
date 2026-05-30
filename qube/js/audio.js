@@ -39,7 +39,7 @@ export class AudioEngine {
   _kickSilentLoop() {
     if (this._silentAudio) return;
     try {
-      const a = new Audio("assets/audio/silence.wav?v=150");
+      const a = new Audio("assets/audio/silence.wav?v=151");
       a.loop = true;
       a.volume = 0.01;
       const p = a.play();
