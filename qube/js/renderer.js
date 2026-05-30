@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { characterById } from "./characters.js?v=150";
-import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=150";
+import { characterById } from "./characters.js?v=151";
+import { GRID_W, GRID_D, MAX_GRID_W, MAX_GRID_D, TILE, GROUT_INSET, COLORS, CUBE_TYPE, PLAYER_SLIDE_MS, CAM_HALFLIFE_MS } from "./config.js?v=151";
 
 // Cheap value-noise + fbm. Shared by the Lambert noise patch and the
 // forbidden-cube lava shader. ~32 hash calls per fragment at 4 octaves;
@@ -1105,15 +1105,16 @@ export class Renderer {
     const model = gltf.scene;
     model.traverse((o) => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; }
+      // SkinnedMesh authored bounds don't track bone motion - disabling
+      // frustum culling avoids any chance of the mesh being culled even
+      // when on-screen.
+      if (o.isSkinnedMesh) o.frustumCulled = false;
     });
     model.scale.setScalar(charDef.scale ?? 1);
     model.position.y = charDef.yOffset ?? 0;
     const mixer = new THREE.AnimationMixer(model);
     const clipMap = charDef.clips || {};
     const animSpeed = charDef.animSpeed ?? 1;
-    // Diagnostics: log what we got vs what we asked for so we can tell
-    // (in browser console) whether T-pose is missing clips or broken
-    // bindings.
     console.log(
       `[mob ${charDef.id}] gltf clips:`,
       gltf.animations.map(c => c.name),
@@ -1128,25 +1129,39 @@ export class Renderer {
         console.warn(`[mob ${charDef.id}] missing clip ${canonical}:"${target}"`);
         continue;
       }
+      // Build the action; we'll play() the active one below using the
+      // exact same call sequence as the player's _playAnim (which works).
       const action = mixer.clipAction(clip);
-      action.enabled = true;
-      action.setEffectiveWeight(0);
       action.timeScale = animSpeed;
-      action.play();
       actions[canonical] = action;
     }
-    if (actions.idle) actions.idle.setEffectiveWeight(1);
-    else console.warn(`[mob ${charDef.id}] NO IDLE ACTION — will be T-posed`);
-    return { model, mixer, actions, current: "idle" };
+    const idle = actions.idle;
+    if (idle) {
+      idle.reset();
+      idle.enabled = true;
+      idle.setEffectiveTimeScale(idle.timeScale);
+      idle.setEffectiveWeight(1);
+      idle.play();
+    } else {
+      console.warn(`[mob ${charDef.id}] NO IDLE ACTION — will be T-posed`);
+    }
+    return { model, mixer, actions, current: idle ? "idle" : null };
   }
 
+  // Cross-fade between named actions. Mirrors the player's _playAnim:
+  // reset + enable + weight=1 + fadeIn on the new action; fadeOut on
+  // the previous.
   _setMobAction(mobData, name) {
     if (!mobData || mobData.current === name) return;
-    const prev = mobData.actions[mobData.current];
     const next = mobData.actions[name];
     if (!next) return;
+    const prev = mobData.current ? mobData.actions[mobData.current] : null;
+    next.reset();
+    next.enabled = true;
     next.setEffectiveTimeScale(next.timeScale);
+    next.setEffectiveWeight(1);
     next.fadeIn(0.12);
+    next.play();
     if (prev) prev.fadeOut(0.12);
     mobData.current = name;
   }
@@ -1302,7 +1317,7 @@ export class Renderer {
     this._markGhostBase = null;   // template loaded from GLB
     this._markGhost = null;       // { mesh, t0, duration } when active
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=150", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=151", (gltf) => {
       this._markGhostBase = gltf.scene;
       this._markGhostBase.traverse((o) => {
         if (o.isMesh) o.castShadow = false;
@@ -1711,14 +1726,14 @@ export class Renderer {
           const p = this._toWorld(cube.gx, cube.gz);
           pivot.position.set(p.x, -u * 0.6, p.z);
           pivot.rotation.x = 0;
-          pivot.rotation.y = Math.PI;
+          pivot.rotation.y = 0;
           pivot.scale.setScalar(1 - u * 0.4);
         } else if (cube.fallingOff) {
           const u = cube.fallOffProgress(now);
           const fromP = this._toWorld(cube.gx, cube.gz);
           pivot.position.set(fromP.x, -u * u * 7, fromP.z + u * 2);
           pivot.rotation.x = u * Math.PI;
-          pivot.rotation.y = Math.PI;
+          pivot.rotation.y = 0;
         } else if (cube.roll) {
           const u = cube.rollProgress(now);
           const fromP = this._toWorld(cube.gx, cube.roll.fromZ);
@@ -1728,14 +1743,14 @@ export class Renderer {
             0,
             fromP.z + (toP.z - fromP.z) * u,
           );
-          pivot.rotation.y = Math.PI;
+          pivot.rotation.y = 0;
           // Walking while the step is in flight; idle through the post-step
           // pause before the next tick fires.
           this._setMobAction(mob, u < 1 ? "walk" : "idle");
         } else {
           const p = this._toWorld(cube.gx, cube.gz);
           pivot.position.set(p.x, 0, p.z);
-          pivot.rotation.y = Math.PI;
+          pivot.rotation.y = 0;
           this._setMobAction(mob, "idle");
         }
         continue;
