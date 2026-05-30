@@ -1,4 +1,4 @@
-import { GRID_W, GRID_D } from "./config.js?v=156";
+import { GRID_W, GRID_D } from "./config.js?v=157";
 
 export class Grid {
   constructor(w, d) {

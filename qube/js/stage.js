@@ -1,5 +1,5 @@
-import { Cube } from "./cube.js?v=156";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=156";
+import { Cube } from "./cube.js?v=157";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=157";
 
 // Which character GLB the `S` layout char spawns. Toggleable via the
 // debug panel; persists across reloads in localStorage.
