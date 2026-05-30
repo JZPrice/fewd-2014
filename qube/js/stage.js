@@ -1,5 +1,17 @@
-import { Cube } from "./cube.js?v=153";
-import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=153";
+import { Cube } from "./cube.js?v=154";
+import { CUBE_TYPE, GRID_W, GRID_D } from "./config.js?v=154";
+
+// Which character GLB the `S` layout char spawns. Toggleable via the
+// debug panel; persists across reloads in localStorage.
+let MOB_MODEL = (() => {
+  try { return localStorage.getItem("qube.mobModel") || "ghost"; }
+  catch (_) { return "ghost"; }
+})();
+export function setMobModel(id) {
+  MOB_MODEL = id;
+  try { localStorage.setItem("qube.mobModel", id); } catch (_) {}
+}
+export function getMobModel() { return MOB_MODEL; }
 
 export class Stage {
   constructor(stageDef) {
@@ -65,7 +77,7 @@ export class Stage {
             type = ch;
           } else if (ch === "S") {
             type = CUBE_TYPE.NORMAL;
-            mobModel = "ghost";
+            mobModel = MOB_MODEL;
           } else {
             continue;
           }
