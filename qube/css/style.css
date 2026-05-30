@@ -634,6 +634,7 @@ body.overlay-shown #pause-btn { opacity: 0.35; pointer-events: none; }
 }
 .dbg-stat > span:first-child { color: #7a87b5; }
 .dbg-stat b { color: #e8eef8; font-weight: 600; }
+.dbg-hint { color: #7a87b5; font-style: italic; font-size: 10px; padding: 2px 0; }
 
 .dbg-sep {
   height: 1px;

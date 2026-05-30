@@ -3,7 +3,9 @@
 // The panel is also scrollable, so even a fully-expanded panel fits on
 // short screens.
 
-import { STAGES } from "./stages.js?v=153";
+import { STAGES } from "./stages.js?v=154";
+import { getMobModel, setMobModel } from "./stage.js?v=154";
+import { CHARACTERS } from "./characters.js?v=154";
 
 export class Debugger {
   constructor(game) {
@@ -159,6 +161,23 @@ export class Debugger {
           </div>
         </div>
 
+        <div class="dbg-section" data-sec="mobs">
+          <button class="dbg-section-head">Mobs</button>
+          <div class="dbg-section-body">
+            <div class="dbg-stat">
+              <span>S spawns</span>
+              <span class="dbg-tune">
+                <button data-act="mob--">◀</button>
+                <b id="dbg-mob">—</b>
+                <button data-act="mob++">▶</button>
+              </span>
+            </div>
+            <div class="dbg-stat dbg-hint">
+              restart the wave for the change to take effect
+            </div>
+          </div>
+        </div>
+
         <div class="dbg-section" data-sec="actions">
           <button class="dbg-section-head">Actions</button>
           <div class="dbg-section-body">
@@ -267,6 +286,8 @@ export class Debugger {
       case "looky++": g.renderer._defaultLookY = (g.renderer._defaultLookY ?? -3.5) + 0.2; break;
       case "copyframing": this._copyFraming(); break;
       case "shaketest": g.renderer.shake?.(0.20, 280); break;
+      case "mob--": this._cycleMob(-1); break;
+      case "mob++": this._cycleMob(+1); break;
       case "copy":  this._copyState(); break;
       case "hap":
         if (g.haptics) {
@@ -289,6 +310,14 @@ export class Debugger {
         if (s) for (const c of s.cubes) c.dead = true;
         break;
     }
+  }
+
+  _cycleMob(dir) {
+    const ids = CHARACTERS.map(c => c.id);
+    const cur = getMobModel();
+    const i = ids.indexOf(cur);
+    const next = ids[((i < 0 ? 0 : i) + dir + ids.length) % ids.length];
+    setMobModel(next);
   }
 
   _copyFraming() {
@@ -375,6 +404,7 @@ export class Debugger {
       $("dbg-camy").textContent = (g.renderer._defaultCamY ?? 0).toFixed(2);
       $("dbg-dz").textContent = (g.renderer._defaultFollowDZ ?? 0).toFixed(2);
       $("dbg-looky").textContent = (g.renderer._defaultLookY ?? 0).toFixed(2);
+      $("dbg-mob").textContent = getMobModel();
       const ls = g.renderer._lastShake;
       $("dbg-shake").textContent = ls
         ? `amp ${ls.amp.toFixed(2)} / ${ls.durMs}ms (${((Date.now() - ls.at) / 1000).toFixed(1)}s ago)`
