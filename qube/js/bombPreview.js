@@ -48,7 +48,7 @@ export class BombPreview {
     this._running = false;
     this._loop = this._loop.bind(this);
 
-    new GLTFLoader().load("assets/effects/bomb.glb?v=157", (gltf) => {
+    new GLTFLoader().load("assets/effects/bomb.glb?v=158", (gltf) => {
       const model = gltf.scene;
       model.traverse((o) => { if (o.isMesh) o.castShadow = false; });
       // The loaded scene already bakes the model's 100x armature scale,

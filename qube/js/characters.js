@@ -36,6 +36,22 @@ export const CHARACTERS = [
   // Smaller stride than the heroes -> bump animSpeed so the walk/run
   // cycles match the ground he's actually covering.
   { id: "skeleton", name: "Skeleton", file: "assets/characters/skeleton.glb", ...KAYKIT, yOffset: 0, animSpeed: 1.6 },
+  // Quaternius "Adventurer" - Mixamo-style rig with a properly
+  // expressive breathing idle (chest sway + subtle head motion),
+  // similar feel to the Robot's idle. CharacterArmature-prefixed clips.
+  {
+    id: "adventurer",
+    name: "Adventurer",
+    file: "assets/characters/adventurer.glb",
+    scale: 0.30,
+    yOffset: 0,
+    clips: {
+      idle:  "CharacterArmature|Idle",
+      walk:  "CharacterArmature|Walk",
+      run:   "CharacterArmature|Run",
+      death: "CharacterArmature|Death",
+    },
+  },
   // Quaternius ghost (CC0 via poly.pizza). Clip names use the model's
   // armature-prefixed format. Hovers via yOffset so it sits above the
   // tile rather than on it - mob path adds slight Y-bob in renderer.
