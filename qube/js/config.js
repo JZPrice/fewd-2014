@@ -28,7 +28,7 @@ export const COLORS = {
   floor:      0xb8c0d4,
   floorEdge:  0x6b7494,
   normal:     0xe6e8ee,
-  forbidden:  0x1a1a22,
+  forbidden:  0x000000,
   forbiddenAccent: 0xff3030,
   advantage:  0x4cd97a,
   advantageAccent: 0xa9ffc5,
