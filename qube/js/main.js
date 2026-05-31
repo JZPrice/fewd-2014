@@ -1,13 +1,14 @@
-import { Renderer } from "./renderer.js?v=159";
-import { Input } from "./input.js?v=159";
-import { AudioEngine } from "./audio.js?v=159";
-import { HUD } from "./hud.js?v=159";
-import { Game } from "./game.js?v=159";
-import { Debugger } from "./debug.js?v=159";
-import { Haptics } from "./haptics.js?v=159";
-import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=159";
-import { CharacterPreview } from "./charPreview.js?v=159";
-import { BombPreview } from "./bombPreview.js?v=159";
+import { Renderer } from "./renderer.js?v=160";
+import { Input } from "./input.js?v=160";
+import { AudioEngine } from "./audio.js?v=160";
+import { HUD } from "./hud.js?v=160";
+import { Game } from "./game.js?v=160";
+import { Debugger } from "./debug.js?v=160";
+import { Haptics } from "./haptics.js?v=160";
+import { CHARACTERS, characterById, savedCharacterId, saveCharacterId } from "./characters.js?v=160";
+import { CharacterPreview } from "./charPreview.js?v=160";
+import { BombPreview } from "./bombPreview.js?v=160";
+import { Tutorial } from "./tutorial.js?v=160";
 
 const canvas = document.getElementById("stage");
 const renderer = new Renderer(canvas);
@@ -27,6 +28,11 @@ let charIdx = Math.max(0, CHARACTERS.findIndex(c => c.id === savedCharacterId())
 const charNameEl = document.getElementById("char-name");
 const previewCanvas = document.getElementById("char-preview-canvas");
 const charPreview = previewCanvas ? new CharacterPreview(previewCanvas) : null;
+
+// Title-screen "how to play" wizard. Self-starts its rAF loop and
+// renders into #tut-canvas.
+const tutorial = document.getElementById("tut-canvas") ? new Tutorial() : null;
+void tutorial; // suppress unused-var lint; the instance keeps itself alive
 function applyCharacter() {
   const c = CHARACTERS[charIdx];
   charNameEl.textContent = c.name;

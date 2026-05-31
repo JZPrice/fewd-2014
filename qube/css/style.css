@@ -111,56 +111,84 @@ html, body {
   opacity: 0.8;
 }
 
-.controls {
-  margin: 12px 0;
-  line-height: 1.55;
-  color: #c8d0e8;
-  font-size: 14px;
+/* Wizard-stepper "how to play" panel - sits between the character
+   picker and the start prompt. One small 3D canvas at the top swaps
+   subject per step (gray cube, forbidden cube, etc.), text underneath,
+   prev/next arrows + dot indicator at the bottom. */
+.tutorial {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  margin: 8px 0 18px;
+  max-width: 340px;
 }
-.controls p { margin: 0; }
-.ctl-goal {
-  font-weight: 600;
-  color: #ffd24c;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+#tut-canvas {
+  width: 200px;
+  height: 160px;
+  display: block;
+  background: transparent;
+  background-image: radial-gradient(
+    ellipse 60% 50% at 50% 55%,
+    rgba(120, 160, 220, 0.10) 0%,
+    rgba(0, 0, 0, 0) 70%
+  );
 }
-.ctl-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.tut-text {
   text-align: center;
+  min-height: 78px;
 }
-.ctl-cubes {
-  list-style: none;
-  padding: 0;
+#tut-title {
+  font-family: "Grenze Gotisch", serif;
+  font-weight: 700;
+  color: #ffd24c;
+  font-size: 22px;
+  margin: 0 0 6px;
+  letter-spacing: 0.02em;
+}
+#tut-desc {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: #b6c0dc;
+  color: #c8d0e8;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 320px;
 }
-.ctl-cubes li {
+.tut-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
 }
-.cube-swatch {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  flex-shrink: 0;
+.tut-arrow {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8eef8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
 }
-.cube-swatch.cube-normal    { background: #b8c0d4; }
-.cube-swatch.cube-forbidden { background: #000;     border-color: #4a0e0e; }
-.cube-swatch.cube-advantage { background: #4cd97a; border-color: #2a8b48; }
+.tut-arrow svg { width: 18px; height: 18px; }
+.tut-arrow:disabled { opacity: 0.3; cursor: default; }
+.tut-arrow:active:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.tut-dots {
+  display: flex;
+  gap: 6px;
+}
+.tut-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.20);
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+.tut-dot.active {
+  background: #ffd24c;
+  transform: scale(1.2);
+}
 
 .char-select {
   margin: 4px 0 22px;
