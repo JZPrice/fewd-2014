@@ -288,6 +288,46 @@ kbd {
 #gameover h1 { color: #ff6b6b; text-shadow: 0 0 24px rgba(255, 80, 80, 0.4); }
 #gameover-reason { color: #b8b8c8; font-size: 14px; letter-spacing: 0.08em; }
 
+body.startup-error #hud,
+body.startup-error #pause-btn,
+body.startup-error #fast-btn,
+body.startup-error #touch-controls {
+  display: none;
+}
+
+#startup-error {
+  z-index: 40;
+}
+
+#startup-error h1 {
+  color: #ffb86b;
+  text-shadow: 0 0 24px rgba(255, 150, 80, 0.4);
+}
+
+.startup-error-copy {
+  max-width: 520px;
+  color: #c8d0e8;
+  font-size: clamp(15px, 2.2vw, 18px);
+  line-height: 1.55;
+}
+
+#startup-reload {
+  margin-top: 8px;
+  padding: 12px 22px;
+  border: 1px solid rgba(255, 210, 120, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 210, 76, 0.14);
+  color: #f4e8c8;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+#startup-reload:hover,
+#startup-reload:focus-visible {
+  background: rgba(255, 210, 76, 0.24);
+}
+
 /* --- touch controls ---------------------------------------------------- */
 
 #touch-controls {

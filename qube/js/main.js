@@ -11,7 +11,33 @@ import { BombPreview } from "./bombPreview.js?v=160";
 import { Tutorial } from "./tutorial.js?v=160";
 
 const canvas = document.getElementById("stage");
-const renderer = new Renderer(canvas);
+
+function showStartupError(error) {
+  console.error("Castles could not start.", error);
+
+  document.body.classList.add("startup-error");
+  document.getElementById("title")?.classList.add("hidden");
+  document.getElementById("gameover")?.classList.add("hidden");
+
+  const overlay = document.createElement("div");
+  overlay.id = "startup-error";
+  overlay.className = "overlay";
+  overlay.setAttribute("role", "alert");
+  overlay.innerHTML = `
+    <h1>WebGL unavailable</h1>
+    <p class="startup-error-copy">
+      Castles needs desktop WebGL to render the game. Enable hardware
+      acceleration, update your browser or graphics drivers, then reload.
+    </p>
+    <button type="button" id="startup-reload">Reload</button>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById("startup-reload")?.addEventListener("click", () => {
+    window.location.reload();
+  });
+}
+
+function startApp(renderer) {
 const input = new Input();
 const audio = new AudioEngine();
 const hud = new HUD();
@@ -312,3 +338,14 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+}
+
+let renderer = null;
+try {
+  renderer = new Renderer(canvas);
+} catch (error) {
+  showStartupError(error);
+}
+
+if (renderer) startApp(renderer);
